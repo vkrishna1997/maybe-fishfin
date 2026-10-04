@@ -87,6 +87,29 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "investments" do
+    get investments_path
+    assert_response :ok
+    assert_select "h1", text: "Investments"
+  end
+
+  test "investments shows portfolio summary tiles" do
+    get investments_path
+    assert_response :ok
+    assert_select "p", text: "Total value"
+    assert_select "p", text: "Holdings"
+    assert_select "p", text: "Cash"
+    assert_select "p", text: "Total return"
+  end
+
+  test "investments shows allocation and holdings sections" do
+    get investments_path
+    assert_response :ok
+    assert_select "h2", text: "Allocation"
+    assert_select "h2", text: "Holdings"
+    assert_select "h2", text: "Accounts"
+  end
+
   test "changelog" do
     VCR.use_cassette("git_repository_provider/fetch_latest_release_notes") do
       get changelog_path

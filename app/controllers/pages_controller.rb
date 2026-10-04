@@ -44,6 +44,25 @@ class PagesController < ApplicationController
     @breadcrumbs = [ [ "Home", root_path ], [ "Cash Flow", nil ] ]
   end
 
+  def investments
+    @investment_accounts = Current.family.accounts.visible
+      .where(accountable_type: %w[Investment Crypto])
+      .order(balance: :desc)
+
+    @investments_currency = Current.family.currency
+    @total_value = @investment_accounts.sum { |a| a.balance.to_d }
+
+    @holdings_rows = aggregated_holdings(@investment_accounts)
+    @holdings_total = @holdings_rows.sum { |r| r[:value] }
+    @cash_total  = @total_value - @holdings_total
+    @total_cost_basis = @holdings_rows.sum { |r| r[:cost_basis] }
+    @total_return = @holdings_total - @total_cost_basis
+
+    @allocation_segments = allocation_segments(@holdings_rows, @cash_total)
+
+    @breadcrumbs = [ [ "Home", root_path ], [ "Investments", nil ] ]
+  end
+
   def changelog
     @release_notes = github_provider.fetch_latest_release_notes
 
@@ -123,6 +142,52 @@ class PagesController < ApplicationController
           net: income - expense
         }
       end
+    end
+
+    # Current holdings aggregated by security across the given accounts, with a
+    # rough cost basis (from avg_cost) so we can show unrealized return.
+    def aggregated_holdings(accounts)
+      accounts.flat_map { |a| a.current_holdings.to_a }
+        .group_by(&:security_id)
+        .map do |_security_id, holdings|
+          first = holdings.first
+          value = holdings.sum { |h| h.amount.to_d }
+          cost_basis = holdings.sum { |h| h.qty.to_d * h.avg_cost.amount.to_d }
+
+          {
+            name: first.name,
+            ticker: first.ticker,
+            qty: holdings.sum { |h| h.qty.to_d },
+            value: value,
+            cost_basis: cost_basis,
+            return_amount: value - cost_basis
+          }
+        end
+        .sort_by { |r| -r[:value] }
+    end
+
+    # Donut segments for portfolio allocation: top holdings, an "Other" bucket
+    # for the long tail, and brokerage cash.
+    def allocation_segments(holdings_rows, cash_total, top_n: 6)
+      palette = %w[#4da568 #e8603c #e8a33c #3c82e8 #9b3ce8 #e83c9b #3cc6e8 #8a8f98]
+
+      segments = []
+      top = holdings_rows.first(top_n)
+      rest = holdings_rows[top_n..] || []
+
+      top.each_with_index do |row, i|
+        segments << { id: row[:ticker] || row[:name], amount: row[:value].to_f.round(2), color: palette[i % palette.size] }
+      end
+
+      if rest.any?
+        segments << { id: "Other", amount: rest.sum { |r| r[:value] }.to_f.round(2), color: "#8a8f98" }
+      end
+
+      if cash_total.positive?
+        segments << { id: "Cash", amount: cash_total.to_f.round(2), color: "#2e9e8f" }
+      end
+
+      segments.select { |s| s[:amount] > 0 }
     end
 
     # Root-level category totals for a classification, non-zero, ranked by spend desc.
