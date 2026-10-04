@@ -32,4 +32,37 @@ class Goal < ApplicationRecord
   def remaining_money
     Money.new(remaining_amount, currency)
   end
+
+  # Whole months from +from+ until the target date (0 when the target is this
+  # month or already past). Nil when the goal has no target date.
+  def months_remaining(from = Date.current)
+    return nil if target_date.blank?
+
+    months = (target_date.year - from.year) * 12 + (target_date.month - from.month)
+    months -= 1 if target_date.day < from.day
+    [ months, 0 ].max
+  end
+
+  # Amount that must be set aside each month to hit the target by its date.
+  # Nil when there's no deadline or the goal is already met.
+  def required_monthly_savings(from = Date.current)
+    return nil if target_date.blank? || completed?
+
+    months = [ months_remaining(from), 1 ].max
+    remaining_amount / months
+  end
+
+  def required_monthly_savings_money(from = Date.current)
+    amount = required_monthly_savings(from)
+    amount && Money.new(amount, currency)
+  end
+
+  # Whether the family's actual savings this month keep the goal on pace.
+  # Goals without a deadline (or already met) are always considered on track.
+  def on_track?(monthly_savings, from = Date.current)
+    required = required_monthly_savings(from)
+    return true if required.nil?
+
+    monthly_savings.to_d >= required
+  end
 end

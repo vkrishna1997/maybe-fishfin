@@ -26,7 +26,7 @@
     </div>
   <% else %>
     <%# --- Summary tiles --- %>
-    <div class="grid grid-cols-2 md:grid-cols-3 bg-container rounded-xl shadow-border-xs md:divide-x divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200">
+    <div class="grid grid-cols-2 md:grid-cols-4 bg-container rounded-xl shadow-border-xs md:divide-x divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200">
       <div class="p-4 space-y-2">
         <p class="text-sm text-secondary">Total saved</p>
         <p class="text-primary font-medium text-xl"><%= Money.new(@total_saved, currency).format %></p>
@@ -36,13 +36,17 @@
         <p class="text-primary font-medium text-xl"><%= Money.new(@total_target, currency).format %></p>
       </div>
       <div class="p-4 space-y-2">
+        <p class="text-sm text-secondary">Saved this month</p>
+        <p class="font-medium text-xl <%= @monthly_savings.to_d.negative? ? "text-warning" : "text-primary" %>"><%= Money.new(@monthly_savings, currency).format %></p>
+      </div>
+      <div class="p-4 space-y-2">
         <p class="text-sm text-secondary">Goals</p>
         <p class="text-primary font-medium text-xl"><%= @goals.size %></p>
       </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="goals-list">
-      <%= render partial: "goals/goal", collection: @goals, as: :goal %>
+      <%= render partial: "goals/goal", collection: @goals, as: :goal, locals: { monthly_savings: @monthly_savings } %>
     </div>
   <% end %>
 </div>
