@@ -36,6 +36,7 @@ Rails.application.routes.draw do
   get "cashflow", to: "pages#cashflow"
   get "investments", to: "pages#investments"
   get "recurring", to: "pages#recurring"
+  resources :goals, except: %i[show]
 
   resource :current_session, only: %i[update]
 
