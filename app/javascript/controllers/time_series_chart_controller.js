@@ -9,6 +9,10 @@ export default class extends Controller {
     strokeWidth: { type: Number, default: 2 },
     useLabels: { type: Boolean, default: true },
     useTooltip: { type: Boolean, default: true },
+    // Optional annotations. Empty by default so every existing chart is
+    // unaffected; the forecasting chart uses them to mark its FI target.
+    referenceLine: { type: Object, default: {} },
+    highlightPoint: { type: Object, default: {} },
   };
 
   _d3SvgMemo = null;
@@ -110,9 +114,101 @@ export default class extends Controller {
       this._drawGradientBelowTrendline();
     }
 
+    this._drawAnnotations();
+
     if (this.useTooltipValue) {
       this._drawTooltip();
       this._trackMouseForShowingTooltip();
+    }
+  }
+
+  // Draws the optional FI reference line + highlight marker. No-op for charts
+  // that don't pass the values, keeping every other chart identical.
+  _drawAnnotations() {
+    this._drawReferenceLine();
+    this._drawHighlightPoint();
+  }
+
+  _drawReferenceLine() {
+    const ref = this.referenceLineValue;
+    if (ref == null || ref.value == null) return;
+
+    const y = this._d3YScale(Number(ref.value));
+    if (Number.isNaN(y)) return;
+
+    this._d3Group
+      .append("line")
+      .attr("class", "fg-subdued")
+      .attr("x1", 0)
+      .attr("x2", this._d3ContainerWidth)
+      .attr("y1", y)
+      .attr("y2", y)
+      .attr("stroke", "currentColor")
+      .attr("stroke-opacity", 0.35)
+      .attr("stroke-width", 1.5)
+      .attr("stroke-dasharray", "6, 6");
+
+    if (ref.label) {
+      this._d3Group
+        .append("text")
+        .attr("class", "fg-gray")
+        .attr("x", this._d3ContainerWidth)
+        .attr("y", y - 6)
+        .attr("text-anchor", "end")
+        .style("font-size", "12px")
+        .style("font-weight", "500")
+        .text(ref.label);
+    }
+  }
+
+  _drawHighlightPoint() {
+    const hp = this.highlightPointValue;
+    if (hp == null || !hp.date) return;
+
+    const date = parseLocalDate(hp.date);
+    if (!date) return;
+
+    const x = this._d3XScale(date);
+    if (Number.isNaN(x)) return;
+
+    this._d3Group
+      .append("line")
+      .attr("x1", x)
+      .attr("x2", x)
+      .attr("y1", 0)
+      .attr("y2", this._d3ContainerHeight)
+      .attr("stroke", this._trendColor)
+      .attr("stroke-opacity", 0.45)
+      .attr("stroke-width", 1.5)
+      .attr("stroke-dasharray", "4, 4");
+
+    // The marker sits where the trajectory meets the reference line (the FI
+    // number), which is exactly where net worth first reaches the target.
+    const ref = this.referenceLineValue;
+    if (ref != null && ref.value != null) {
+      const y = this._d3YScale(Number(ref.value));
+      if (!Number.isNaN(y)) {
+        this._d3Group
+          .append("circle")
+          .attr("cx", x)
+          .attr("cy", y)
+          .attr("r", 5)
+          .attr("fill", this._trendColor)
+          .attr("stroke", "var(--color-container)")
+          .attr("stroke-width", 2);
+      }
+    }
+
+    if (hp.label) {
+      this._d3Group
+        .append("text")
+        .attr("class", "fg-gray")
+        .attr("x", x)
+        .attr("y", 12)
+        .attr("text-anchor", "middle")
+        .style("font-size", "12px")
+        .style("font-weight", "500")
+        .text(hp.label);
     }
   }
 

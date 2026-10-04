@@ -61,6 +61,16 @@ class NetWorthForecast
     series.last.net_worth
   end
 
+  # Builds a Series in the same shape the home-page net-worth chart consumes,
+  # so the forecast renders through the shared time-series chart controller
+  # with identical hover, axes, and styling.
+  def net_worth_series
+    @net_worth_series ||= Series.from_raw_values(
+      series.map { |point| { date: point.date, value: point.net_worth_money(@currency) } },
+      interval: "1 year"
+    )
+  end
+
   # Nest egg required to cover annual expenses at a 4% withdrawal rate.
   def fi_number
     return nil if @annual_expenses.nil? || @annual_expenses <= 0

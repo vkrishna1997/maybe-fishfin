@@ -171,6 +171,15 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-testid='forecast-summary']"
   end
 
+  test "forecasting renders through the shared time-series chart" do
+    get forecasting_path(monthly_contribution: 2000, annual_growth_rate: 5, current_age: 40, annual_expenses: 48000)
+    assert_response :ok
+    assert_select "[data-testid='forecast-chart'][data-controller='time-series-chart']"
+    assert_select "[data-time-series-chart-data-value]"
+    assert_select "[data-time-series-chart-reference-line-value]"
+    assert_select "[data-time-series-chart-highlight-point-value]"
+  end
+
   test "changelog" do
     VCR.use_cassette("git_repository_provider/fetch_latest_release_notes") do
       get changelog_path
