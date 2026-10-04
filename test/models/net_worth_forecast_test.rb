@@ -90,4 +90,16 @@ class NetWorthForecastTest < ActiveSupport::TestCase
     forecast = build(net_worth: 2_000_000, monthly_contribution: 0, annual_growth_rate: 0, years: 5, annual_expenses: 40_000)
     assert_nil forecast.retirement_age
   end
+
+  test "net worth series matches the chart series shape" do
+    forecast = build(net_worth: 50_000, monthly_contribution: 1_000, annual_growth_rate: 6, years: 10)
+    series = forecast.net_worth_series
+
+    assert_kind_of Series, series
+    assert_equal forecast.series.size, series.values.size
+    assert_equal Date.current, series.start_date
+    assert_in_delta forecast.starting_net_worth, series.values.first.value.amount.to_f, 0.01
+    assert_in_delta forecast.ending_net_worth, series.values.last.value.amount.to_f, 0.01
+    assert series.values.last.trend.present?
+  end
 end
