@@ -1,6 +1,8 @@
 require "test_helper"
 
 class PagesControllerTest < ActionDispatch::IntegrationTest
+  include EntriesTestHelper
+
   setup do
     sign_in @user = users(:family_admin)
   end
@@ -108,6 +110,30 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "h2", text: "Allocation"
     assert_select "h2", text: "Holdings"
     assert_select "h2", text: "Accounts"
+  end
+
+  test "recurring" do
+    get recurring_path
+    assert_response :ok
+    assert_select "h1", text: "Recurring"
+  end
+
+  test "recurring detects a monthly subscription" do
+    merchant = @user.family.merchants.create!(name: "Spotify", type: "FamilyMerchant")
+    5.times do |i|
+      create_transaction(
+        account: accounts(:depository),
+        name: "Spotify",
+        amount: 11.99,
+        date: (i * 30).days.ago.to_date,
+        merchant: merchant
+      )
+    end
+
+    get recurring_path
+    assert_response :ok
+    assert_select "[data-testid='recurring-expenses-table']"
+    assert_select "td", text: "Spotify"
   end
 
   test "changelog" do
