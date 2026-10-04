@@ -1,0 +1,45 @@
+<%# locals: (goal:) %>
+
+<div id="<%= dom_id(goal) %>" class="bg-container rounded-xl shadow-border-xs p-5 space-y-4">
+  <div class="flex items-start justify-between gap-2">
+    <div class="flex items-center gap-2.5">
+      <span class="w-3 h-3 rounded-full inline-block mt-1" style="background-color: <%= goal.color %>"></span>
+      <div>
+        <p class="text-primary font-medium"><%= goal.name %></p>
+        <% if goal.target_date.present? %>
+          <p class="text-xs text-secondary">Target <%= goal.target_date.strftime("%b %d, %Y") %></p>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <% if goal.completed? %>
+        <span class="text-xs font-medium text-success bg-success/10 rounded-full px-2 py-0.5">Complete</span>
+      <% end %>
+      <%= render DS::Menu.new do |menu| %>
+        <% menu.with_item(variant: "link", text: "Edit", href: edit_goal_path(goal), icon: "pencil", data: { turbo_frame: "modal" }) %>
+        <% menu.with_item(
+          variant: "button",
+          text: "Delete",
+          href: goal_path(goal),
+          icon: "trash-2",
+          method: :delete,
+          confirm: CustomConfirm.for_resource_deletion(goal.name)
+        ) %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="space-y-1.5">
+    <div class="w-full h-2 rounded-full bg-alpha-black-100 theme-dark:bg-alpha-white-200 overflow-hidden">
+      <div class="h-full rounded-full" style="width: <%= goal.progress_percent %>%; background-color: <%= goal.color %>"></div>
+    </div>
+    <div class="flex items-center justify-between text-sm">
+      <span class="text-primary font-medium"><%= goal.current_amount_money.format %> <span class="text-secondary font-normal">of <%= goal.target_amount_money.format %></span></span>
+      <span class="text-secondary"><%= number_to_percentage(goal.progress_percent, precision: 0) %></span>
+    </div>
+    <% unless goal.completed? %>
+      <p class="text-xs text-secondary"><%= goal.remaining_money.format %> to go</p>
+    <% end %>
+  </div>
+</div>

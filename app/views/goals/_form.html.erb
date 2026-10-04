@@ -1,0 +1,24 @@
+<%= styled_form_with model: goal, class: "space-y-4", data: { turbo_frame: :_top } do |f| %>
+  <section class="space-y-4">
+    <%= f.text_field :name, label: "Goal name", placeholder: "Emergency fund", required: true, autofocus: true %>
+    <%= f.money_field :target_amount, label: "Target amount", required: true, hide_currency: true %>
+    <%= f.money_field :current_amount, label: "Saved so far", hide_currency: true %>
+    <%= f.date_field :target_date, label: "Target date (optional)" %>
+
+    <div class="space-y-1.5">
+      <span class="form-field__label">Color</span>
+      <div class="flex gap-2 items-center">
+        <% Goal::COLORS.each do |color| %>
+          <label class="relative">
+            <%= f.radio_button :color, color, class: "sr-only peer" %>
+            <div class="w-6 h-6 rounded-full cursor-pointer peer-checked:ring-2 peer-checked:ring-offset-2 peer-checked:ring-blue-500" style="background-color: <%= color %>"></div>
+          </label>
+        <% end %>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <%= f.submit %>
+  </section>
+<% end %>
