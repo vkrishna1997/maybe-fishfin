@@ -5,6 +5,7 @@ class GoalsController < ApplicationController
     @goals = Current.family.goals.ordered
     @total_target = @goals.sum { |g| g.target_amount.to_d }
     @total_saved = @goals.sum { |g| g.current_amount.to_d }
+    @monthly_savings = current_month_surplus
     @goals_currency = Current.family.currency
     @breadcrumbs = [ [ "Home", root_path ], [ "Goals", nil ] ]
   end
@@ -44,6 +45,14 @@ class GoalsController < ApplicationController
 
     def set_goal
       @goal = Current.family.goals.find(params[:id])
+    end
+
+    # Net amount saved so far this calendar month (income minus expenses).
+    def current_month_surplus
+      statement = Current.family.income_statement
+      income = statement.income_totals(period: Period.current_month).total.to_d
+      expense = statement.expense_totals(period: Period.current_month).total.to_d
+      income - expense
     end
 
     def goal_params
