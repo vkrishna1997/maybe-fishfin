@@ -34,6 +34,7 @@ Rails.application.routes.draw do
   get "feedback", to: "pages#feedback"
   get "reports", to: "pages#reports"
   get "cashflow", to: "pages#cashflow"
+  get "investments", to: "pages#investments"
 
   resource :current_session, only: %i[update]
 
