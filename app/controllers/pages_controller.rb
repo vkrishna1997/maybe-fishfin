@@ -28,37 +28,20 @@ class PagesController < ApplicationController
   end
 
   def reports
-    @accounts = Current.family.accounts.visible
-
-    period_param = params[:cashflow_period]
-    @cashflow_period = if period_param.present?
-      begin
-        Period.from_key(period_param)
-      rescue Period::InvalidKeyError
-        Period.last_30_days
-      end
-    else
-      Period.last_30_days
-    end
-
-    family_currency = Current.family.currency
-    income_statement = Current.family.income_statement
-    @income_totals = income_statement.income_totals(period: @cashflow_period)
-    @expense_totals = income_statement.expense_totals(period: @cashflow_period)
-
-    prior_period = previous_period_for(@cashflow_period)
-    if prior_period
-      @prior_income_total = income_statement.income_totals(period: prior_period).total
-      @prior_expense_total = income_statement.expense_totals(period: prior_period).total
-      @comparison_label = @cashflow_period.comparison_label
-    end
-
-    @cashflow_sankey_data = build_cashflow_sankey_data(@income_totals, @expense_totals, family_currency)
+    load_cashflow_overview(params[:cashflow_period])
 
     @expense_category_totals = ranked_category_totals(@expense_totals)
     @income_category_totals = ranked_category_totals(@income_totals)
 
     @breadcrumbs = [ [ "Home", root_path ], [ "Reports", nil ] ]
+  end
+
+  def cashflow
+    load_cashflow_overview(params[:cashflow_period])
+
+    @monthly_cashflow = monthly_cashflow_series(months: 6)
+
+    @breadcrumbs = [ [ "Home", root_path ], [ "Cash Flow", nil ] ]
   end
 
   def changelog
@@ -89,6 +72,57 @@ class PagesController < ApplicationController
   private
     def github_provider
       Provider::Registry.get_provider(:github)
+    end
+
+    # Shared cash-flow data for the Reports and Cash Flow tabs: resolves the
+    # selected period, income/expense totals, prior-period comparison and sankey.
+    def load_cashflow_overview(period_param)
+      @accounts = Current.family.accounts.visible
+
+      @cashflow_period = if period_param.present?
+        begin
+          Period.from_key(period_param)
+        rescue Period::InvalidKeyError
+          Period.last_30_days
+        end
+      else
+        Period.last_30_days
+      end
+
+      income_statement = Current.family.income_statement
+      @income_totals = income_statement.income_totals(period: @cashflow_period)
+      @expense_totals = income_statement.expense_totals(period: @cashflow_period)
+
+      prior_period = previous_period_for(@cashflow_period)
+      if prior_period
+        @prior_income_total = income_statement.income_totals(period: prior_period).total
+        @prior_expense_total = income_statement.expense_totals(period: prior_period).total
+        @comparison_label = @cashflow_period.comparison_label
+      end
+
+      @cashflow_sankey_data = build_cashflow_sankey_data(@income_totals, @expense_totals, Current.family.currency)
+    end
+
+    # Income/expense/net totals for each of the last `months` calendar months,
+    # oldest first, for the Cash Flow over-time chart.
+    def monthly_cashflow_series(months: 6)
+      income_statement = Current.family.income_statement
+      anchor = Date.current.beginning_of_month
+
+      (0...months).to_a.reverse.map do |offset|
+        month_start = anchor - offset.months
+        period = Period.new(start_date: month_start, end_date: month_start.end_of_month)
+        income = income_statement.income_totals(period: period).total.to_f
+        expense = income_statement.expense_totals(period: period).total.to_f
+
+        {
+          label: month_start.strftime("%b"),
+          month: month_start.strftime("%b %Y"),
+          income: income,
+          expense: expense,
+          net: income - expense
+        }
+      end
     end
 
     # Root-level category totals for a classification, non-zero, ranked by spend desc.

@@ -55,6 +55,38 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "cashflow" do
+    get cashflow_path
+    assert_response :ok
+    assert_select "h1", text: "Cash Flow"
+  end
+
+  test "cashflow shows the income vs expenses over-time chart" do
+    get cashflow_path
+    assert_response :ok
+    assert_select "[data-testid='cashflow-over-time-chart']"
+    assert_select "h2", text: "Income vs. expenses"
+  end
+
+  test "cashflow shows cash flow summary tiles" do
+    get cashflow_path
+    assert_response :ok
+    assert_select "p", text: "Income"
+    assert_select "p", text: "Expenses"
+    assert_select "p", text: "Net Savings"
+    assert_select "p", text: "Savings Rate"
+  end
+
+  test "cashflow accepts a valid cashflow period" do
+    get cashflow_path(cashflow_period: "last_90_days")
+    assert_response :ok
+  end
+
+  test "cashflow falls back to default on an invalid cashflow period" do
+    get cashflow_path(cashflow_period: "not_a_real_period")
+    assert_response :ok
+  end
+
   test "changelog" do
     VCR.use_cassette("git_repository_provider/fetch_latest_release_notes") do
       get changelog_path

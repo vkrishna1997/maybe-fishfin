@@ -7,14 +7,9 @@
   </div>
 <% end %>
 
-<% currency     = @income_totals.currency
-   income_val   = @income_totals.total.to_f
-   expense_val  = @expense_totals.total.to_f
-   net_val      = income_val - expense_val
-   savings_rate = income_val.zero? ? 0 : (net_val / income_val * 100).round(1)
-   prior_income  = @prior_income_total&.to_f
-   prior_expense = @prior_expense_total&.to_f
-   prior_net     = (prior_income && prior_expense) ? prior_income - prior_expense : nil %>
+<% currency    = @income_totals.currency
+   income_val  = @income_totals.total.to_f
+   expense_val = @expense_totals.total.to_f %>
 
 <div class="w-full space-y-6 pb-24">
   <%= turbo_frame_tag "reports_cashflow_section" do %>
@@ -33,49 +28,15 @@
       </div>
 
       <%# --- Summary tiles (Monarch-style) --- %>
-      <div class="grid grid-cols-2 md:grid-cols-4 bg-container rounded-xl shadow-border-xs md:divide-x divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200">
-        <div class="p-4 space-y-2">
-          <p class="text-sm text-secondary">Income</p>
-          <p class="text-success font-medium text-xl"><%= Money.new(income_val, currency).format %></p>
-          <%= render "pages/trend_delta", current: income_val, prior: prior_income, higher_is_better: true, label: @comparison_label %>
-        </div>
-        <div class="p-4 space-y-2">
-          <p class="text-sm text-secondary">Expenses</p>
-          <p class="text-primary font-medium text-xl"><%= Money.new(expense_val, currency).format %></p>
-          <%= render "pages/trend_delta", current: expense_val, prior: prior_expense, higher_is_better: false, label: @comparison_label %>
-        </div>
-        <div class="p-4 space-y-2">
-          <p class="text-sm text-secondary">Net Savings</p>
-          <p class="<%= net_val.negative? ? "text-destructive" : "text-success" %> font-medium text-xl"><%= Money.new(net_val, currency).format %></p>
-          <%= render "pages/trend_delta", current: net_val, prior: prior_net, higher_is_better: true, label: @comparison_label %>
-        </div>
-        <div class="p-4 space-y-2">
-          <p class="text-sm text-secondary">Savings Rate</p>
-          <p class="text-primary font-medium text-xl"><%= number_to_percentage(savings_rate, precision: 1) %></p>
-        </div>
-      </div>
+      <%= render "pages/cashflow_summary_tiles",
+            income_totals: @income_totals,
+            expense_totals: @expense_totals,
+            prior_income_total: @prior_income_total,
+            prior_expense_total: @prior_expense_total,
+            comparison_label: @comparison_label %>
 
       <%# --- Sankey (full width, tall) --- %>
-      <section class="bg-container py-6 px-2 rounded-xl shadow-border-xs">
-        <% if @cashflow_sankey_data[:links].present? %>
-          <div class="w-full h-[500px] lg:h-[640px]">
-            <div
-              data-controller="sankey-chart"
-              data-sankey-chart-data-value="<%= @cashflow_sankey_data.to_json %>"
-              data-sankey-chart-currency-symbol-value="<%= @cashflow_sankey_data[:currency_symbol] %>"
-              class="w-full h-full"></div>
-          </div>
-        <% else %>
-          <div class="h-[400px] bg-container py-4 flex flex-col items-center justify-center">
-            <div class="space-y-3 text-center flex flex-col items-center">
-              <%= render DS::FilledIcon.new(variant: :container, icon: "activity") %>
-              <p class="text-sm font-medium text-primary">No cash flow data for this time period</p>
-              <p class="text-secondary text-sm">Add transactions to display cash flow data or expand the time period</p>
-              <%= render DS::Link.new(text: "Add transaction", icon: "plus", href: new_transaction_path, frame: :modal) %>
-            </div>
-          </div>
-        <% end %>
-      </section>
+      <%= render "pages/cashflow_sankey", sankey_data: @cashflow_sankey_data %>
 
       <%# --- Category breakdowns (Monarch-style) --- %>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
