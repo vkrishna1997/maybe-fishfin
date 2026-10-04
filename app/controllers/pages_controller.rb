@@ -73,6 +73,33 @@ class PagesController < ApplicationController
     @breadcrumbs = [ [ "Home", root_path ], [ "Recurring", nil ] ]
   end
 
+  def forecasting
+    income_statement = Current.family.income_statement
+    median_income = income_statement.median_income(interval: "month").to_d
+    median_expense = income_statement.median_expense(interval: "month").to_d
+    default_contribution = [ median_income - median_expense, 0 ].max
+    default_expenses = (median_expense * 12).round
+
+    @forecast_assumptions = {
+      monthly_contribution: param_decimal(:monthly_contribution, default_contribution),
+      annual_growth_rate: param_decimal(:annual_growth_rate, 6.0),
+      years: params[:years].present? ? params[:years].to_i.clamp(1, 50) : 30,
+      annual_expenses: param_decimal(:annual_expenses, default_expenses)
+    }
+
+    @forecast = NetWorthForecast.new(
+      Current.family,
+      monthly_contribution: @forecast_assumptions[:monthly_contribution],
+      annual_growth_rate: @forecast_assumptions[:annual_growth_rate],
+      years: @forecast_assumptions[:years],
+      annual_expenses: @forecast_assumptions[:annual_expenses]
+    )
+
+    @forecasting_currency = Current.family.currency
+
+    @breadcrumbs = [ [ "Home", root_path ], [ "Forecasting", nil ] ]
+  end
+
   def changelog
     @release_notes = github_provider.fetch_latest_release_notes
 
@@ -101,6 +128,17 @@ class PagesController < ApplicationController
   private
     def github_provider
       Provider::Registry.get_provider(:github)
+    end
+
+    # Parses a decimal query param, falling back to the given default when the
+    # param is blank or not a valid number.
+    def param_decimal(key, default)
+      raw = params[key]
+      return default if raw.blank?
+
+      BigDecimal(raw.to_s)
+    rescue ArgumentError
+      default
     end
 
     # Shared cash-flow data for the Reports and Cash Flow tabs: resolves the
