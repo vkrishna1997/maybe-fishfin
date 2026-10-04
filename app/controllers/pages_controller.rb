@@ -42,8 +42,16 @@ class PagesController < ApplicationController
     end
 
     family_currency = Current.family.currency
-    @income_totals = Current.family.income_statement.income_totals(period: @cashflow_period)
-    @expense_totals = Current.family.income_statement.expense_totals(period: @cashflow_period)
+    income_statement = Current.family.income_statement
+    @income_totals = income_statement.income_totals(period: @cashflow_period)
+    @expense_totals = income_statement.expense_totals(period: @cashflow_period)
+
+    prior_period = previous_period_for(@cashflow_period)
+    if prior_period
+      @prior_income_total = income_statement.income_totals(period: prior_period).total
+      @prior_expense_total = income_statement.expense_totals(period: prior_period).total
+      @comparison_label = @cashflow_period.comparison_label
+    end
 
     @cashflow_sankey_data = build_cashflow_sankey_data(@income_totals, @expense_totals, family_currency)
 
@@ -89,6 +97,15 @@ class PagesController < ApplicationController
         .reject { |ct| ct.category.subcategory? }
         .reject { |ct| ct.total.to_d.zero? }
         .sort_by { |ct| -ct.total.to_d }
+    end
+
+    # Equal-length window immediately preceding the given period, for comparisons.
+    def previous_period_for(period)
+      prior_end = period.start_date - 1
+      prior_start = prior_end - (period.days - 1)
+      Period.new(start_date: prior_start, end_date: prior_end)
+    rescue ArgumentError
+      nil
     end
 
     def build_cashflow_sankey_data(income_totals, expense_totals, currency_symbol)

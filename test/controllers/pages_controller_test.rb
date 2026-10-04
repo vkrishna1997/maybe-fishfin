@@ -39,6 +39,12 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "h3", text: "Income by category"
   end
 
+  test "reports shows a period-over-period comparison label" do
+    get reports_path(cashflow_period: "last_30_days")
+    assert_response :ok
+    assert_select "p", text: /vs\. last month/
+  end
+
   test "reports accepts a valid cashflow period" do
     get reports_path(cashflow_period: "last_90_days")
     assert_response :ok

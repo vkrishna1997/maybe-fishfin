@@ -1,0 +1,15 @@
+<%# locals: (current:, prior:, higher_is_better:, label: nil) %>
+<% if prior.present? %>
+  <% change = current.to_d - prior.to_d
+     pct = prior.to_d.zero? ? nil : (change / prior.to_d.abs * 100)
+     flat = pct.nil? || pct.abs.round(1).zero?
+     rising = change > 0
+     favorable = flat ? nil : (rising == higher_is_better)
+     color = favorable.nil? ? "text-secondary" : (favorable ? "text-success" : "text-destructive")
+     arrow = flat ? "minus" : (rising ? "arrow-up" : "arrow-down") %>
+  <p class="flex items-center gap-1 text-xs font-medium <%= color %>">
+    <%= icon arrow, size: "xs", color: "current" %>
+    <span class="tabular-nums"><%= pct.nil? ? "—" : number_to_percentage(pct.abs, precision: 1) %></span>
+    <% if label.present? %><span class="text-secondary font-normal"><%= label %></span><% end %>
+  </p>
+<% end %>
