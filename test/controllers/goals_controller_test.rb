@@ -64,4 +64,16 @@ class GoalsControllerTest < ActionDispatch::IntegrationTest
     get edit_goal_url(other)
     assert_response :not_found
   end
+
+  test "index renders savings-pace signal used by the on-track badge" do
+    @user.family.goals.create!(name: "Trip", target_amount: 5000, current_amount: 1000, currency: "USD", target_date: 6.months.from_now)
+
+    get goals_url
+    assert_response :success
+
+    assert_select "p", text: "Saved this month"
+    assert_select "[data-testid=goals-list]"
+    # Badge carries a tooltip explaining the on-track basis.
+    assert_select "span[data-controller=tooltip] span[role=tooltip]"
+  end
 end
