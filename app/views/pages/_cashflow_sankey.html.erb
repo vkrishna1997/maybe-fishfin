@@ -1,0 +1,20 @@
+<section class="bg-container py-6 px-2 rounded-xl shadow-border-xs">
+  <% if sankey_data[:links].present? %>
+    <div class="w-full h-[500px] lg:h-[640px]">
+      <div
+        data-controller="sankey-chart"
+        data-sankey-chart-data-value="<%= sankey_data.to_json %>"
+        data-sankey-chart-currency-symbol-value="<%= sankey_data[:currency_symbol] %>"
+        class="w-full h-full"></div>
+    </div>
+  <% else %>
+    <div class="h-[400px] bg-container py-4 flex flex-col items-center justify-center">
+      <div class="space-y-3 text-center flex flex-col items-center">
+        <%= render DS::FilledIcon.new(variant: :container, icon: "activity") %>
+        <p class="text-sm font-medium text-primary">No cash flow data for this time period</p>
+        <p class="text-secondary text-sm">Add transactions to display cash flow data or expand the time period</p>
+        <%= render DS::Link.new(text: "Add transaction", icon: "plus", href: new_transaction_path, frame: :modal) %>
+      </div>
+    </div>
+  <% end %>
+</section>

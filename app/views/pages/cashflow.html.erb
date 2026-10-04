@@ -1,0 +1,38 @@
+<% content_for :page_header do %>
+  <div class="space-y-1 mb-6 flex gap-4 justify-between items-center lg:items-start">
+    <div class="space-y-1">
+      <h1 class="text-xl lg:text-3xl font-medium text-primary">Cash Flow</h1>
+      <p class="text-sm lg:text-base text-secondary">See money in, money out, and where it flows</p>
+    </div>
+  </div>
+<% end %>
+
+<div class="w-full space-y-6 pb-24">
+  <%= turbo_frame_tag "cashflow_section" do %>
+    <div class="space-y-6">
+      <%# --- Period selector --- %>
+      <div class="flex justify-between items-center gap-4">
+        <h2 class="text-lg font-medium text-primary">Summary</h2>
+
+        <%= form_with url: cashflow_path, method: :get, data: { controller: "auto-submit-form", turbo_frame: "cashflow_section" } do |form| %>
+          <%= form.select :cashflow_period,
+                    Period.as_options,
+                    { selected: @cashflow_period.key },
+                    data: { "auto-submit-form-target": "auto" },
+                    class: "bg-container border border-secondary font-medium rounded-lg px-3 py-2 text-sm pr-7 cursor-pointer text-primary focus:outline-hidden focus:ring-0" %>
+        <% end %>
+      </div>
+
+      <%= render "pages/cashflow_summary_tiles",
+            income_totals: @income_totals,
+            expense_totals: @expense_totals,
+            prior_income_total: @prior_income_total,
+            prior_expense_total: @prior_expense_total,
+            comparison_label: @comparison_label %>
+
+      <%= render "pages/cashflow_over_time", monthly_cashflow: @monthly_cashflow %>
+
+      <%= render "pages/cashflow_sankey", sankey_data: @cashflow_sankey_data %>
+    </div>
+  <% end %>
+</div>
