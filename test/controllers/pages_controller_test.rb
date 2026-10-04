@@ -144,10 +144,10 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "forecasting respects custom assumptions" do
-    get forecasting_path(monthly_contribution: 2000, annual_growth_rate: 5, years: 10, annual_expenses: 48000)
+    get forecasting_path(monthly_contribution: 2000, annual_growth_rate: 5, current_age: 40, annual_expenses: 48000)
     assert_response :ok
     assert_select "[data-testid='forecast-chart']"
-    assert_select "p", text: "Projected in 10 yrs"
+    assert_select "[data-testid='forecast-summary']"
   end
 
   test "changelog" do

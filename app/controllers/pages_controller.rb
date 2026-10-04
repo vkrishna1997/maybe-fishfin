@@ -83,16 +83,16 @@ class PagesController < ApplicationController
     @forecast_assumptions = {
       monthly_contribution: param_decimal(:monthly_contribution, default_contribution),
       annual_growth_rate: param_decimal(:annual_growth_rate, 6.0),
-      years: params[:years].present? ? params[:years].to_i.clamp(1, 50) : 30,
-      annual_expenses: param_decimal(:annual_expenses, default_expenses)
+      annual_expenses: param_decimal(:annual_expenses, default_expenses),
+      current_age: params[:current_age].present? ? params[:current_age].to_i.clamp(0, 120) : nil
     }
 
     @forecast = NetWorthForecast.new(
       Current.family,
       monthly_contribution: @forecast_assumptions[:monthly_contribution],
       annual_growth_rate: @forecast_assumptions[:annual_growth_rate],
-      years: @forecast_assumptions[:years],
-      annual_expenses: @forecast_assumptions[:annual_expenses]
+      annual_expenses: @forecast_assumptions[:annual_expenses],
+      current_age: @forecast_assumptions[:current_age]
     )
 
     @forecasting_currency = Current.family.currency
