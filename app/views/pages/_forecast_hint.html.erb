@@ -1,0 +1,7 @@
+<%# locals: (text:) %>
+<span data-controller="tooltip" data-tooltip-placement-value="top" class="inline-flex items-center text-subdued cursor-help">
+  <%= icon("info", size: "sm", color: "current") %>
+  <span role="tooltip" data-tooltip-target="tooltip" class="tooltip bg-gray-700 text-sm p-2 rounded w-64 fg-inverse font-normal z-10">
+    <%= text %>
+  </span>
+</span>

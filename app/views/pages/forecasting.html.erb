@@ -42,15 +42,24 @@
   <%# --- Summary tiles --- %>
   <div class="grid grid-cols-2 md:grid-cols-4 bg-container rounded-xl shadow-border-xs md:divide-x divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200" data-testid="forecast-summary">
     <div class="p-4 space-y-2">
-      <p class="text-sm text-secondary">Current net worth</p>
+      <div class="flex items-center gap-1.5">
+        <p class="text-sm text-secondary">Current net worth</p>
+        <%= render "pages/forecast_hint", text: "Your net worth today — the starting point for the projection." %>
+      </div>
       <p class="text-primary font-medium text-xl"><%= @forecast.money(@forecast.starting_net_worth).format %></p>
     </div>
     <div class="p-4 space-y-2">
-      <p class="text-sm text-secondary">FI number</p>
+      <div class="flex items-center gap-1.5">
+        <p class="text-sm text-secondary">FI number</p>
+        <%= render "pages/forecast_hint", text: "Your financial-independence target: 25× your annual expenses (the 4% rule). It depends only on expenses — saving more doesn't lower it, it just gets you there sooner." %>
+      </div>
       <p class="text-primary font-medium text-xl"><%= @forecast.fi_number ? @forecast.money(@forecast.fi_number).format : "—" %></p>
     </div>
     <div class="p-4 space-y-2">
-      <p class="text-sm text-secondary">Financial independence</p>
+      <div class="flex items-center gap-1.5">
+        <p class="text-sm text-secondary">Financial independence</p>
+        <%= render "pages/forecast_hint", text: "When your projected net worth first reaches the FI number. Higher contributions or growth move this date earlier." %>
+      </div>
       <% if @forecast.fi_date %>
         <p class="text-success font-medium text-xl"><%= @forecast.fi_date.strftime("%b %Y") %></p>
         <p class="text-xs text-secondary"><%= distance_of_time_in_words(Date.current, @forecast.fi_date) %> away</p>
@@ -59,7 +68,10 @@
       <% end %>
     </div>
     <div class="p-4 space-y-2">
-      <p class="text-sm text-secondary">Retirement age</p>
+      <div class="flex items-center gap-1.5">
+        <p class="text-sm text-secondary">Retirement age</p>
+        <%= render "pages/forecast_hint", text: "Your age on the financial-independence date. Enter your current age above to calculate it." %>
+      </div>
       <% if @forecast.retirement_age %>
         <p class="text-success font-medium text-xl"><%= @forecast.retirement_age %></p>
       <% elsif @forecast.fi_date %>
