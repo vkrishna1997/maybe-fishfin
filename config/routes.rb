@@ -33,6 +33,7 @@ Rails.application.routes.draw do
   get "changelog", to: "pages#changelog"
   get "feedback", to: "pages#feedback"
   get "reports", to: "pages#reports"
+  get "reports/transactions", to: "pages#report_transactions", as: :report_transactions
   get "cashflow", to: "pages#cashflow"
   get "investments", to: "pages#investments"
   get "recurring", to: "pages#recurring"

@@ -57,6 +57,27 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "reports sankey is interactive and renders a drill-down frame" do
+    get reports_path
+    assert_response :ok
+    assert_select "turbo-frame#reports_transactions"
+    assert_select "[data-sankey-chart-transactions-url-value]"
+  end
+
+  test "report transactions drill-down renders for a category" do
+    get report_transactions_path(category: "Food & Drink", cashflow_period: "last_30_days")
+    assert_response :ok
+    assert_select "turbo-frame#reports_transactions"
+    assert_select "[data-testid='report-transactions']"
+    assert_select "h3", text: "Food & Drink"
+  end
+
+  test "report transactions drill-down handles an invalid period" do
+    get report_transactions_path(category: "Food & Drink", cashflow_period: "not_a_real_period")
+    assert_response :ok
+    assert_select "[data-testid='report-transactions']"
+  end
+
   test "cashflow" do
     get cashflow_path
     assert_response :ok
