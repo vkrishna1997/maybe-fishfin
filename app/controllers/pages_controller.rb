@@ -27,6 +27,29 @@ class PagesController < ApplicationController
     @breadcrumbs = [ [ "Home", root_path ], [ "Dashboard", nil ] ]
   end
 
+  def reports
+    @accounts = Current.family.accounts.visible
+
+    period_param = params[:cashflow_period]
+    @cashflow_period = if period_param.present?
+      begin
+        Period.from_key(period_param)
+      rescue Period::InvalidKeyError
+        Period.last_30_days
+      end
+    else
+      Period.last_30_days
+    end
+
+    family_currency = Current.family.currency
+    @income_totals = Current.family.income_statement.income_totals(period: @cashflow_period)
+    @expense_totals = Current.family.income_statement.expense_totals(period: @cashflow_period)
+
+    @cashflow_sankey_data = build_cashflow_sankey_data(@income_totals, @expense_totals, family_currency)
+
+    @breadcrumbs = [ [ "Home", root_path ], [ "Reports", nil ] ]
+  end
+
   def changelog
     @release_notes = github_provider.fetch_latest_release_notes
 

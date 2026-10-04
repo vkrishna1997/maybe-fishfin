@@ -1,0 +1,75 @@
+<% content_for :page_header do %>
+  <div class="space-y-1 mb-6 flex gap-4 justify-between items-center lg:items-start">
+    <div class="space-y-1">
+      <h1 class="text-xl lg:text-3xl font-medium text-primary">Reports</h1>
+      <p class="text-sm lg:text-base text-secondary">Understand your cash flow at a glance</p>
+    </div>
+  </div>
+<% end %>
+
+<% currency     = @income_totals.currency
+   income_val   = @income_totals.total.to_f
+   expense_val  = @expense_totals.total.to_f
+   net_val      = income_val - expense_val
+   savings_rate = income_val.zero? ? 0 : (net_val / income_val * 100).round(1) %>
+
+<div class="w-full space-y-6 pb-24">
+  <%= turbo_frame_tag "reports_cashflow_section" do %>
+    <div class="space-y-6">
+      <%# --- Period selector --- %>
+      <div class="flex justify-between items-center gap-4">
+        <h2 class="text-lg font-medium text-primary">Cash Flow</h2>
+
+        <%= form_with url: reports_path, method: :get, data: { controller: "auto-submit-form", turbo_frame: "reports_cashflow_section" } do |form| %>
+          <%= form.select :cashflow_period,
+                    Period.as_options,
+                    { selected: @cashflow_period.key },
+                    data: { "auto-submit-form-target": "auto" },
+                    class: "bg-container border border-secondary font-medium rounded-lg px-3 py-2 text-sm pr-7 cursor-pointer text-primary focus:outline-hidden focus:ring-0" %>
+        <% end %>
+      </div>
+
+      <%# --- Summary tiles (Monarch-style) --- %>
+      <div class="grid grid-cols-2 md:grid-cols-4 bg-container rounded-xl shadow-border-xs md:divide-x divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200">
+        <div class="p-4 space-y-2">
+          <p class="text-sm text-secondary">Income</p>
+          <p class="text-success font-medium text-xl"><%= Money.new(income_val, currency).format %></p>
+        </div>
+        <div class="p-4 space-y-2">
+          <p class="text-sm text-secondary">Expenses</p>
+          <p class="text-primary font-medium text-xl"><%= Money.new(expense_val, currency).format %></p>
+        </div>
+        <div class="p-4 space-y-2">
+          <p class="text-sm text-secondary">Net Savings</p>
+          <p class="<%= net_val.negative? ? "text-destructive" : "text-success" %> font-medium text-xl"><%= Money.new(net_val, currency).format %></p>
+        </div>
+        <div class="p-4 space-y-2">
+          <p class="text-sm text-secondary">Savings Rate</p>
+          <p class="text-primary font-medium text-xl"><%= number_to_percentage(savings_rate, precision: 1) %></p>
+        </div>
+      </div>
+
+      <%# --- Sankey (full width, tall) --- %>
+      <section class="bg-container py-6 px-2 rounded-xl shadow-border-xs">
+        <% if @cashflow_sankey_data[:links].present? %>
+          <div class="w-full h-[500px] lg:h-[640px]">
+            <div
+              data-controller="sankey-chart"
+              data-sankey-chart-data-value="<%= @cashflow_sankey_data.to_json %>"
+              data-sankey-chart-currency-symbol-value="<%= @cashflow_sankey_data[:currency_symbol] %>"
+              class="w-full h-full"></div>
+          </div>
+        <% else %>
+          <div class="h-[400px] bg-container py-4 flex flex-col items-center justify-center">
+            <div class="space-y-3 text-center flex flex-col items-center">
+              <%= render DS::FilledIcon.new(variant: :container, icon: "activity") %>
+              <p class="text-sm font-medium text-primary">No cash flow data for this time period</p>
+              <p class="text-secondary text-sm">Add transactions to display cash flow data or expand the time period</p>
+              <%= render DS::Link.new(text: "Add transaction", icon: "plus", href: new_transaction_path, frame: :modal) %>
+            </div>
+          </div>
+        <% end %>
+      </section>
+    </div>
+  <% end %>
+</div>

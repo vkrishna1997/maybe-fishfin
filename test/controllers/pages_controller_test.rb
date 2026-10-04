@@ -10,6 +10,38 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "dashboard no longer renders the cashflow sankey" do
+    get root_path
+    assert_response :ok
+    assert_select "#cashflow-sankey-chart", count: 0
+  end
+
+  test "reports" do
+    get reports_path
+    assert_response :ok
+    assert_select "h1", text: "Reports"
+    assert_select "h2", text: "Cash Flow"
+  end
+
+  test "reports shows cash flow summary tiles" do
+    get reports_path
+    assert_response :ok
+    assert_select "p", text: "Income"
+    assert_select "p", text: "Expenses"
+    assert_select "p", text: "Net Savings"
+    assert_select "p", text: "Savings Rate"
+  end
+
+  test "reports accepts a valid cashflow period" do
+    get reports_path(cashflow_period: "last_90_days")
+    assert_response :ok
+  end
+
+  test "reports falls back to default on an invalid cashflow period" do
+    get reports_path(cashflow_period: "not_a_real_period")
+    assert_response :ok
+  end
+
   test "changelog" do
     VCR.use_cassette("git_repository_provider/fetch_latest_release_notes") do
       get changelog_path
