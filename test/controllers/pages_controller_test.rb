@@ -136,6 +136,20 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "td", text: "Spotify"
   end
 
+  test "forecasting" do
+    get forecasting_path
+    assert_response :ok
+    assert_select "h1", text: "Forecasting"
+    assert_select "[data-testid='forecast-summary']"
+  end
+
+  test "forecasting respects custom assumptions" do
+    get forecasting_path(monthly_contribution: 2000, annual_growth_rate: 5, years: 10, annual_expenses: 48000)
+    assert_response :ok
+    assert_select "[data-testid='forecast-chart']"
+    assert_select "p", text: "Projected in 10 yrs"
+  end
+
   test "changelog" do
     VCR.use_cassette("git_repository_provider/fetch_latest_release_notes") do
       get changelog_path

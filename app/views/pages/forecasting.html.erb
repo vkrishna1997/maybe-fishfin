@@ -1,0 +1,115 @@
+<% content_for :page_header do %>
+  <div class="space-y-1 mb-6 flex gap-4 justify-between items-center lg:items-start">
+    <div class="space-y-1">
+      <h1 class="text-xl lg:text-3xl font-medium text-primary">Forecasting</h1>
+      <p class="text-sm lg:text-base text-secondary">Project your net worth and estimate when you could reach financial independence</p>
+    </div>
+  </div>
+<% end %>
+
+<% currency = @forecasting_currency %>
+<% input_class = "bg-container border border-secondary font-medium rounded-lg px-3 py-2 text-sm text-primary focus:outline-hidden focus:ring-0 w-full" %>
+
+<div class="w-full space-y-6 pb-24">
+  <%# --- Assumptions --- %>
+  <section class="bg-container rounded-xl shadow-border-xs p-5 space-y-4">
+    <h2 class="font-medium text-lg text-primary">Assumptions</h2>
+    <%= form_with url: forecasting_path, method: :get do |form| %>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <label class="space-y-1.5 block">
+          <span class="text-sm text-secondary">Monthly contribution</span>
+          <%= form.number_field :monthly_contribution, value: @forecast_assumptions[:monthly_contribution].to_i, step: "any", class: input_class %>
+        </label>
+        <label class="space-y-1.5 block">
+          <span class="text-sm text-secondary">Annual growth rate (%)</span>
+          <%= form.number_field :annual_growth_rate, value: @forecast_assumptions[:annual_growth_rate], step: "0.1", class: input_class %>
+        </label>
+        <label class="space-y-1.5 block">
+          <span class="text-sm text-secondary">Years to project</span>
+          <%= form.number_field :years, value: @forecast_assumptions[:years], min: 1, max: 50, step: 1, class: input_class %>
+        </label>
+        <label class="space-y-1.5 block">
+          <span class="text-sm text-secondary">Annual expenses (for FI)</span>
+          <%= form.number_field :annual_expenses, value: @forecast_assumptions[:annual_expenses].to_i, step: "any", class: input_class %>
+        </label>
+      </div>
+      <div class="mt-4">
+        <%= form.submit "Update forecast", class: "bg-gray-900 theme-dark:bg-white text-white theme-dark:text-gray-900 font-medium rounded-lg px-4 py-2 text-sm cursor-pointer" %>
+      </div>
+    <% end %>
+  </section>
+
+  <%# --- Summary tiles --- %>
+  <div class="grid grid-cols-2 md:grid-cols-4 bg-container rounded-xl shadow-border-xs md:divide-x divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200" data-testid="forecast-summary">
+    <div class="p-4 space-y-2">
+      <p class="text-sm text-secondary">Current net worth</p>
+      <p class="text-primary font-medium text-xl"><%= @forecast.money(@forecast.starting_net_worth).format %></p>
+    </div>
+    <div class="p-4 space-y-2">
+      <p class="text-sm text-secondary">Projected in <%= @forecast.years %> yrs</p>
+      <p class="text-primary font-medium text-xl"><%= @forecast.money(@forecast.ending_net_worth).format %></p>
+    </div>
+    <div class="p-4 space-y-2">
+      <p class="text-sm text-secondary">FI number</p>
+      <p class="text-primary font-medium text-xl"><%= @forecast.fi_number ? @forecast.money(@forecast.fi_number).format : "—" %></p>
+    </div>
+    <div class="p-4 space-y-2">
+      <p class="text-sm text-secondary">Financial independence</p>
+      <% if @forecast.fi_date %>
+        <p class="text-success font-medium text-xl"><%= @forecast.fi_date.strftime("%b %Y") %></p>
+        <p class="text-xs text-secondary"><%= distance_of_time_in_words(Date.current, @forecast.fi_date) %> away</p>
+      <% else %>
+        <p class="text-primary font-medium text-xl">Not within <%= @forecast.years %> yrs</p>
+      <% end %>
+    </div>
+  </div>
+
+  <%# --- Projection chart --- %>
+  <section class="bg-container rounded-xl shadow-border-xs p-5 space-y-4">
+    <h2 class="font-medium text-lg text-primary">Projected net worth</h2>
+    <%# Scale bars across the full value range so negative or declining projections still render clearly. %>
+    <% values = @forecast.series.map(&:net_worth) %>
+    <% min_nw = values.min %>
+    <% max_nw = values.max %>
+    <% span = (max_nw - min_nw).abs %>
+    <div class="flex items-end gap-1 h-48" data-testid="forecast-chart">
+      <% @forecast.series.each do |point| %>
+        <% height = span.zero? ? 50 : (((point.net_worth - min_nw) / span) * 95 + 5).round(1) %>
+        <div class="flex-1 flex flex-col items-center justify-end h-full group">
+          <div class="w-full rounded-t <%= point.net_worth.negative? ? "bg-red-500/70 hover:bg-red-500" : "bg-green-500/80 hover:bg-green-500" %> transition-colors"
+               style="height: <%= height %>%"
+               title="Year <%= point.year %>: <%= point.net_worth_money(currency).format %>"></div>
+        </div>
+      <% end %>
+    </div>
+    <div class="flex justify-between text-xs text-secondary">
+      <span>Now</span>
+      <span><%= @forecast.years %> years</span>
+    </div>
+  </section>
+
+  <%# --- Projection table --- %>
+  <section class="bg-container rounded-xl shadow-border-xs p-5 space-y-4">
+    <h2 class="font-medium text-lg text-primary">Year-by-year</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-secondary text-left border-b border-alpha-black-100 theme-dark:border-alpha-white-200">
+            <th class="font-medium py-2 pr-4">Year</th>
+            <th class="font-medium py-2 pr-4">Date</th>
+            <th class="font-medium py-2 pr-4 text-right">Projected net worth</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @forecast.series.each do |point| %>
+            <tr class="border-b border-alpha-black-50 theme-dark:border-alpha-white-100 last:border-0">
+              <td class="py-2.5 pr-4 text-primary"><%= point.year.zero? ? "Now" : "Year #{point.year}" %></td>
+              <td class="py-2.5 pr-4 text-secondary"><%= point.date.strftime("%b %Y") %></td>
+              <td class="py-2.5 pr-4 text-right text-primary font-medium whitespace-nowrap"><%= point.net_worth_money(currency).format %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
