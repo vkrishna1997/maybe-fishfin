@@ -24,9 +24,10 @@ class ForecastingTest < ApplicationSystemTestCase
     assert_selector "[data-testid='forecast-chart']"
 
     fill_in "annual_growth_rate", with: "8"
-    fill_in "years", with: "15"
+    fill_in "current_age", with: "35"
     click_button "Update forecast"
 
-    assert_text "Projected in 15 yrs"
+    assert_selector "[data-testid='forecast-chart']"
+    assert_text "Current net worth"
   end
 end

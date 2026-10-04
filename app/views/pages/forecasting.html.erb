@@ -25,12 +25,12 @@
           <%= form.number_field :annual_growth_rate, value: @forecast_assumptions[:annual_growth_rate], step: "0.1", class: input_class %>
         </label>
         <label class="space-y-1.5 block">
-          <span class="text-sm text-secondary">Years to project</span>
-          <%= form.number_field :years, value: @forecast_assumptions[:years], min: 1, max: 50, step: 1, class: input_class %>
-        </label>
-        <label class="space-y-1.5 block">
           <span class="text-sm text-secondary">Annual expenses (for FI)</span>
           <%= form.number_field :annual_expenses, value: @forecast_assumptions[:annual_expenses].to_i, step: "any", class: input_class %>
+        </label>
+        <label class="space-y-1.5 block">
+          <span class="text-sm text-secondary">Current age <span class="text-subdued">(optional)</span></span>
+          <%= form.number_field :current_age, value: @forecast_assumptions[:current_age], min: 0, max: 120, step: 1, placeholder: "—", class: input_class %>
         </label>
       </div>
       <div class="mt-4">
@@ -46,10 +46,6 @@
       <p class="text-primary font-medium text-xl"><%= @forecast.money(@forecast.starting_net_worth).format %></p>
     </div>
     <div class="p-4 space-y-2">
-      <p class="text-sm text-secondary">Projected in <%= @forecast.years %> yrs</p>
-      <p class="text-primary font-medium text-xl"><%= @forecast.money(@forecast.ending_net_worth).format %></p>
-    </div>
-    <div class="p-4 space-y-2">
       <p class="text-sm text-secondary">FI number</p>
       <p class="text-primary font-medium text-xl"><%= @forecast.fi_number ? @forecast.money(@forecast.fi_number).format : "—" %></p>
     </div>
@@ -59,57 +55,104 @@
         <p class="text-success font-medium text-xl"><%= @forecast.fi_date.strftime("%b %Y") %></p>
         <p class="text-xs text-secondary"><%= distance_of_time_in_words(Date.current, @forecast.fi_date) %> away</p>
       <% else %>
-        <p class="text-primary font-medium text-xl">Not within <%= @forecast.years %> yrs</p>
+        <p class="text-primary font-medium text-xl">Not reached</p>
+      <% end %>
+    </div>
+    <div class="p-4 space-y-2">
+      <p class="text-sm text-secondary">Retirement age</p>
+      <% if @forecast.retirement_age %>
+        <p class="text-success font-medium text-xl"><%= @forecast.retirement_age %></p>
+      <% elsif @forecast.fi_date %>
+        <p class="text-primary font-medium text-xl">Set age above</p>
+      <% else %>
+        <p class="text-primary font-medium text-xl">—</p>
       <% end %>
     </div>
   </div>
 
-  <%# --- Projection chart --- %>
+  <%# --- Projection line chart --- %>
   <section class="bg-container rounded-xl shadow-border-xs p-5 space-y-4">
-    <h2 class="font-medium text-lg text-primary">Projected net worth</h2>
-    <%# Scale bars across the full value range so negative or declining projections still render clearly. %>
-    <% values = @forecast.series.map(&:net_worth) %>
-    <% min_nw = values.min %>
-    <% max_nw = values.max %>
-    <% span = (max_nw - min_nw).abs %>
-    <div class="flex items-end gap-1 h-48" data-testid="forecast-chart">
-      <% @forecast.series.each do |point| %>
-        <% height = span.zero? ? 50 : (((point.net_worth - min_nw) / span) * 95 + 5).round(1) %>
-        <div class="flex-1 flex flex-col items-center justify-end h-full group">
-          <div class="w-full rounded-t <%= point.net_worth.negative? ? "bg-red-500/70 hover:bg-red-500" : "bg-green-500/80 hover:bg-green-500" %> transition-colors"
-               style="height: <%= height %>%"
-               title="Year <%= point.year %>: <%= point.net_worth_money(currency).format %>"></div>
-        </div>
-      <% end %>
+    <div class="flex items-center justify-between">
+      <h2 class="font-medium text-lg text-primary">Projected net worth</h2>
+      <div class="flex items-center gap-4 text-xs text-secondary">
+        <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-0.5 bg-green-500"></span>Net worth</span>
+        <% if @forecast.fi_number %>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-0 border-t border-dashed border-secondary"></span>FI number</span>
+        <% end %>
+      </div>
     </div>
-    <div class="flex justify-between text-xs text-secondary">
-      <span>Now</span>
-      <span><%= @forecast.years %> years</span>
-    </div>
-  </section>
 
-  <%# --- Projection table --- %>
-  <section class="bg-container rounded-xl shadow-border-xs p-5 space-y-4">
-    <h2 class="font-medium text-lg text-primary">Year-by-year</h2>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-secondary text-left border-b border-alpha-black-100 theme-dark:border-alpha-white-200">
-            <th class="font-medium py-2 pr-4">Year</th>
-            <th class="font-medium py-2 pr-4">Date</th>
-            <th class="font-medium py-2 pr-4 text-right">Projected net worth</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @forecast.series.each do |point| %>
-            <tr class="border-b border-alpha-black-50 theme-dark:border-alpha-white-100 last:border-0">
-              <td class="py-2.5 pr-4 text-primary"><%= point.year.zero? ? "Now" : "Year #{point.year}" %></td>
-              <td class="py-2.5 pr-4 text-secondary"><%= point.date.strftime("%b %Y") %></td>
-              <td class="py-2.5 pr-4 text-right text-primary font-medium whitespace-nowrap"><%= point.net_worth_money(currency).format %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
+    <%
+      series = @forecast.series
+      values = series.map(&:net_worth)
+      fi_num = @forecast.fi_number
+      chart_max = [ values.max, fi_num ].compact.max
+      chart_min = [ values.min, 0 ].min
+      span = (chart_max - chart_min)
+      span = 1 if span.zero?
+
+      width = 1000.0
+      height = 320.0
+      pad_l = 8.0
+      pad_r = 8.0
+      pad_t = 16.0
+      pad_b = 24.0
+      plot_w = width - pad_l - pad_r
+      plot_h = height - pad_t - pad_b
+      last_year = series.last.year.to_f
+      last_year = 1.0 if last_year.zero?
+
+      x_for = ->(year) { pad_l + (year.to_f / last_year) * plot_w }
+      y_for = ->(v) { pad_t + (1 - ((v - chart_min) / span)) * plot_h }
+
+      line_points = series.map { |p| "#{x_for.call(p.year).round(2)},#{y_for.call(p.net_worth).round(2)}" }.join(" ")
+      area_points = "#{x_for.call(0).round(2)},#{(pad_t + plot_h).round(2)} #{line_points} #{x_for.call(series.last.year).round(2)},#{(pad_t + plot_h).round(2)}"
+
+      zero_y = y_for.call(0).round(2)
+      fi_y = fi_num ? y_for.call(fi_num).round(2) : nil
+      fi_x = @forecast.fi_year ? x_for.call(@forecast.fi_year).round(2) : nil
+    %>
+
+    <div class="w-full" data-testid="forecast-chart">
+      <svg viewBox="0 0 <%= width.to_i %> <%= height.to_i %>" preserveAspectRatio="none" class="w-full h-72" role="img" aria-label="Projected net worth over time">
+        <defs>
+          <linearGradient id="nwArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgb(34 197 94)" stop-opacity="0.25" />
+            <stop offset="100%" stop-color="rgb(34 197 94)" stop-opacity="0" />
+          </linearGradient>
+        </defs>
+
+        <%# zero baseline (only when the series dips below zero) %>
+        <% if chart_min < 0 %>
+          <line x1="<%= pad_l %>" y1="<%= zero_y %>" x2="<%= (width - pad_r) %>" y2="<%= zero_y %>" stroke="currentColor" stroke-opacity="0.15" stroke-width="1" />
+        <% end %>
+
+        <%# FI number reference line %>
+        <% if fi_y %>
+          <line x1="<%= pad_l %>" y1="<%= fi_y %>" x2="<%= (width - pad_r) %>" y2="<%= fi_y %>" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 6" />
+        <% end %>
+
+        <%# filled area + net-worth line %>
+        <polygon points="<%= area_points %>" fill="url(#nwArea)" stroke="none" />
+        <polyline points="<%= line_points %>" fill="none" stroke="rgb(34 197 94)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" />
+
+        <%# retirement / FI highlight %>
+        <% if fi_x && fi_y %>
+          <line x1="<%= fi_x %>" y1="<%= pad_t %>" x2="<%= fi_x %>" y2="<%= (pad_t + plot_h) %>" stroke="rgb(34 197 94)" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="4 4" />
+          <circle cx="<%= fi_x %>" cy="<%= fi_y %>" r="6" fill="rgb(34 197 94)" stroke="white" stroke-width="2" />
+        <% end %>
+      </svg>
+    </div>
+
+    <%# x-axis labels + FI callout %>
+    <div class="flex justify-between text-xs text-secondary">
+      <span>Now<% if @forecast.current_age %> · age <%= @forecast.current_age %><% end %></span>
+      <% if @forecast.fi_date %>
+        <span class="text-success font-medium">
+          Financial independence · <%= @forecast.fi_date.strftime("%b %Y") %><% if @forecast.retirement_age %> · age <%= @forecast.retirement_age %><% end %>
+        </span>
+      <% end %>
+      <span><%= series.last.date.strftime("%Y") %><% if @forecast.current_age %> · age <%= @forecast.current_age + series.last.year %><% end %></span>
     </div>
   </section>
 </div>

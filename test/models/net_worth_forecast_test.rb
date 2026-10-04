@@ -65,4 +65,29 @@ class NetWorthForecastTest < ActiveSupport::TestCase
     flat = build(net_worth: 10_000, monthly_contribution: 500, annual_growth_rate: 0, years: 10).ending_net_worth
     assert_operator grown, :>, flat
   end
+
+  test "horizon extends to 40 years past financial independence" do
+    forecast = build(net_worth: 2_000_000, monthly_contribution: 0, annual_growth_rate: 0, years: 5, annual_expenses: 40_000)
+    # Already FI (fi_year 0), so the horizon should be 0 + 40 years, ignoring the fallback.
+    assert_equal NetWorthForecast::EXTRA_YEARS_PAST_FI, forecast.years
+    assert_equal 41, forecast.series.size
+  end
+
+  test "retirement age combines current age with years to fi" do
+    BalanceSheet.any_instance.stubs(:net_worth).returns(2_000_000)
+    forecast = NetWorthForecast.new(
+      @family,
+      monthly_contribution: 0,
+      annual_growth_rate: 0,
+      annual_expenses: 40_000,
+      current_age: 30
+    )
+    assert_equal 0, forecast.fi_year
+    assert_equal 30, forecast.retirement_age
+  end
+
+  test "retirement age is nil without a current age" do
+    forecast = build(net_worth: 2_000_000, monthly_contribution: 0, annual_growth_rate: 0, years: 5, annual_expenses: 40_000)
+    assert_nil forecast.retirement_age
+  end
 end

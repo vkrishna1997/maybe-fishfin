@@ -9,21 +9,37 @@ class NetWorthForecast
   end
 
   SAFE_WITHDRAWAL_RATE = 0.04
+  # Keep projecting for this many years past the FI point so users can see the
+  # trajectory through a full retirement.
+  EXTRA_YEARS_PAST_FI = 40
+  # Upper bound when searching for the FI crossing.
+  FI_SEARCH_YEARS = 60
 
-  def initialize(family, monthly_contribution:, annual_growth_rate:, years:, annual_expenses: nil)
+  def initialize(family, monthly_contribution:, annual_growth_rate:, years: 50, annual_expenses: nil, current_age: nil)
     @family = family
     @currency = family.currency
     @starting_net_worth = family.balance_sheet.net_worth.to_f
     @monthly_contribution = monthly_contribution.to_f
     @annual_growth_rate = annual_growth_rate.to_f
-    @years = years.to_i
+    @fallback_years = years.to_i
     @annual_expenses = annual_expenses&.to_f
+    @current_age = current_age.present? ? current_age.to_i : nil
   end
 
-  attr_reader :currency, :starting_net_worth, :monthly_contribution, :annual_growth_rate, :years
+  attr_reader :currency, :starting_net_worth, :monthly_contribution, :annual_growth_rate, :current_age
 
   def monthly_rate
     (@annual_growth_rate / 100.0) / 12.0
+  end
+
+  # Horizon is driven by the FI goal: project 40 years past it. When FI is not
+  # reached (or no expenses are given), fall back to the provided horizon.
+  def years
+    @years ||= if fi_reached_within_horizon?
+      fi_year.ceil + EXTRA_YEARS_PAST_FI
+    else
+      @fallback_years
+    end
   end
 
   # One YearPoint per year from 0 (today) through the horizon.
@@ -32,7 +48,7 @@ class NetWorthForecast
       points = [ YearPoint.new(0, Date.current, @starting_net_worth) ]
       net_worth = @starting_net_worth
 
-      (1..@years).each do |year|
+      (1..years).each do |year|
         12.times { net_worth = grow_one_month(net_worth) }
         points << YearPoint.new(year, Date.current + year.years, net_worth)
       end
@@ -53,20 +69,17 @@ class NetWorthForecast
   end
 
   # Months until projected net worth first covers the FI number, or nil if it
-  # is not reached within the horizon.
+  # is not reached within the search window.
   def months_to_fi
-    target = fi_number
-    return nil if target.nil?
-    return 0 if @starting_net_worth >= target
+    return @months_to_fi if defined?(@months_to_fi)
 
-    net_worth = @starting_net_worth
+    @months_to_fi = compute_months_to_fi
+  end
 
-    (1..(@years * 12)).each do |month|
-      net_worth = grow_one_month(net_worth)
-      return month if net_worth >= target
-    end
-
-    nil
+  # Fractional years until FI, or nil.
+  def fi_year
+    months = months_to_fi
+    months && (months / 12.0)
   end
 
   def fi_date
@@ -78,11 +91,33 @@ class NetWorthForecast
     !months_to_fi.nil?
   end
 
+  # Age at financial independence, when a current age is supplied.
+  def retirement_age
+    return nil if @current_age.nil? || fi_year.nil?
+
+    @current_age + fi_year.ceil
+  end
+
   def money(value)
     Money.new(value || 0, @currency)
   end
 
   private
+
+    def compute_months_to_fi
+      target = fi_number
+      return nil if target.nil?
+      return 0 if @starting_net_worth >= target
+
+      net_worth = @starting_net_worth
+
+      (1..(FI_SEARCH_YEARS * 12)).each do |month|
+        net_worth = grow_one_month(net_worth)
+        return month if net_worth >= target
+      end
+
+      nil
+    end
 
     # Advances one month. Growth is applied only to the positive (investable)
     # portion of net worth — debt is not assumed to compound at the market
