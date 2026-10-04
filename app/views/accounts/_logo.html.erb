@@ -1,4 +1,8 @@
 <%# locals: (account:, size: "md", color: nil) %>
+<%# Synth's logo CDN (logo.synthfinance.com) is defunct (NXDOMAIN), so the old
+    third-party image call 404'd for every Plaid account. Use the account's
+    attached logo if present, otherwise a color block with initials
+    (DS::FilledIcon). Also avoids a browser request to a third party. %>
 
 <% size_classes = {
   "sm" => "w-6 h-6",
@@ -7,9 +11,7 @@
   "full" => "w-full h-full"
 } %>
 
-<% if account.plaid_account_id? && account.institution_domain.present? %>
-  <%= image_tag "https://logo.synthfinance.com/#{account.institution_domain}", class: "shrink-0 rounded-full #{size_classes[size]}" %>
-<% elsif account.logo.attached? %>
+<% if account.logo.attached? %>
   <%= image_tag account.logo, class: "shrink-0 rounded-full #{size_classes[size]}" %>
 <% else %>
   <%= render DS::FilledIcon.new(variant: :text, hex_color: color || account.accountable.color, text: account.name, size: size, rounded: true) %>
