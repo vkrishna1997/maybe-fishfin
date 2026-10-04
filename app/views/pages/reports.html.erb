@@ -70,6 +70,20 @@
           </div>
         <% end %>
       </section>
+
+      <%# --- Category breakdowns (Monarch-style) --- %>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <%= render "pages/category_breakdown",
+              title: "Spending by category",
+              category_totals: @expense_category_totals,
+              total: expense_val,
+              currency: currency %>
+        <%= render "pages/category_breakdown",
+              title: "Income by category",
+              category_totals: @income_category_totals,
+              total: income_val,
+              currency: currency %>
+      </div>
     </div>
   <% end %>
 </div>

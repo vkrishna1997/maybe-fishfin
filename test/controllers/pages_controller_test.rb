@@ -32,6 +32,13 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "p", text: "Savings Rate"
   end
 
+  test "reports shows category breakdown sections" do
+    get reports_path
+    assert_response :ok
+    assert_select "h3", text: "Spending by category"
+    assert_select "h3", text: "Income by category"
+  end
+
   test "reports accepts a valid cashflow period" do
     get reports_path(cashflow_period: "last_90_days")
     assert_response :ok

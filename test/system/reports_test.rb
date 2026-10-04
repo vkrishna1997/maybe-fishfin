@@ -24,6 +24,13 @@ class ReportsTest < ApplicationSystemTestCase
     assert_text "Savings Rate"
   end
 
+  test "reports page shows category breakdown sections" do
+    visit reports_path
+
+    assert_selector "h3", text: /Spending by category/i
+    assert_selector "h3", text: /Income by category/i
+  end
+
   test "reports period selector reloads the cash flow section" do
     visit reports_path
 

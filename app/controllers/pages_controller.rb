@@ -47,6 +47,9 @@ class PagesController < ApplicationController
 
     @cashflow_sankey_data = build_cashflow_sankey_data(@income_totals, @expense_totals, family_currency)
 
+    @expense_category_totals = ranked_category_totals(@expense_totals)
+    @income_category_totals = ranked_category_totals(@income_totals)
+
     @breadcrumbs = [ [ "Home", root_path ], [ "Reports", nil ] ]
   end
 
@@ -78,6 +81,14 @@ class PagesController < ApplicationController
   private
     def github_provider
       Provider::Registry.get_provider(:github)
+    end
+
+    # Root-level category totals for a classification, non-zero, ranked by spend desc.
+    def ranked_category_totals(period_total)
+      period_total.category_totals
+        .reject { |ct| ct.category.subcategory? }
+        .reject { |ct| ct.total.to_d.zero? }
+        .sort_by { |ct| -ct.total.to_d }
     end
 
     def build_cashflow_sankey_data(income_totals, expense_totals, currency_symbol)
