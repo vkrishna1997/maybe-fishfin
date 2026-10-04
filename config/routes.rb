@@ -35,6 +35,7 @@ Rails.application.routes.draw do
   get "reports", to: "pages#reports"
   get "cashflow", to: "pages#cashflow"
   get "investments", to: "pages#investments"
+  get "recurring", to: "pages#recurring"
 
   resource :current_session, only: %i[update]
 

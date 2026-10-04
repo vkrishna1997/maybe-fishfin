@@ -63,6 +63,16 @@ class PagesController < ApplicationController
     @breadcrumbs = [ [ "Home", root_path ], [ "Investments", nil ] ]
   end
 
+  def recurring
+    detector = RecurringSeries.new(Current.family)
+    @recurring_expenses = detector.expenses
+    @recurring_incomes = detector.incomes
+    @monthly_expense_estimate = detector.monthly_expense_estimate
+    @recurring_currency = Current.family.currency
+
+    @breadcrumbs = [ [ "Home", root_path ], [ "Recurring", nil ] ]
+  end
+
   def changelog
     @release_notes = github_provider.fetch_latest_release_notes
 
