@@ -1,4 +1,4 @@
-<%# locals: (goal:, monthly_savings: nil) %>
+<%# locals: (goal:, monthly_savings: nil, savings_basis: :current, savings_months: 0) %>
 
 <div id="<%= dom_id(goal) %>" class="bg-container rounded-xl shadow-border-xs p-5 space-y-4">
   <div class="flex items-start justify-between gap-2">
@@ -16,11 +16,20 @@
       <% if goal.completed? %>
         <span class="text-xs font-medium text-success bg-success/10 rounded-full px-2 py-0.5">Complete</span>
       <% elsif goal.target_date.present? %>
-        <% if goal.on_track?(monthly_savings) %>
-          <span class="text-xs font-medium text-success bg-success/10 rounded-full px-2 py-0.5">On track</span>
-        <% else %>
-          <span class="text-xs font-medium text-warning bg-warning/10 rounded-full px-2 py-0.5">Behind</span>
-        <% end %>
+        <span data-controller="tooltip" data-tooltip-placement-value="top" class="cursor-help">
+          <% if goal.on_track?(monthly_savings) %>
+            <span class="text-xs font-medium text-success bg-success/10 rounded-full px-2 py-0.5">On track</span>
+          <% else %>
+            <span class="text-xs font-medium text-warning bg-warning/10 rounded-full px-2 py-0.5">Behind</span>
+          <% end %>
+          <span role="tooltip" data-tooltip-target="tooltip" class="tooltip bg-gray-700 text-sm p-2 rounded w-64 fg-inverse font-normal z-10">
+            <% if savings_basis == :trailing %>
+              Compares your average net savings over the last <%= pluralize(savings_months, "month") %> against the <%= goal.required_monthly_savings_money&.format %>/mo this goal needs.
+            <% else %>
+              Based on this month's net savings so far (limited history) vs the <%= goal.required_monthly_savings_money&.format %>/mo this goal needs.
+            <% end %>
+          </span>
+        </span>
       <% end %>
       <%= render DS::Menu.new do |menu| %>
         <% menu.with_item(variant: "link", text: "Edit", href: edit_goal_path(goal), icon: "pencil", data: { turbo_frame: "modal" }) %>
@@ -66,11 +75,15 @@
       <% unless monthly_savings.nil? %>
         <div class="text-right">
           <% if goal.on_track?(monthly_savings) %>
-            <p class="text-xs text-success font-medium">On track this month</p>
+            <p class="text-xs text-success font-medium">On pace</p>
           <% else %>
-            <p class="text-xs text-warning font-medium">Behind this month</p>
+            <p class="text-xs text-warning font-medium">Behind pace</p>
           <% end %>
-          <p class="text-xs text-secondary">Saved <%= Money.new(monthly_savings, goal.currency).format %></p>
+          <% if savings_basis == :trailing %>
+            <p class="text-xs text-secondary"><%= Money.new(monthly_savings, goal.currency).format %>/mo avg · <%= savings_months %> mo</p>
+          <% else %>
+            <p class="text-xs text-secondary"><%= Money.new(monthly_savings, goal.currency).format %> this month</p>
+          <% end %>
         </div>
       <% end %>
     </div>
