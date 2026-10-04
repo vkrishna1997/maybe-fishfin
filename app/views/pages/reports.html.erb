@@ -36,7 +36,10 @@
             comparison_label: @comparison_label %>
 
       <%# --- Sankey (full width, tall) --- %>
-      <%= render "pages/cashflow_sankey", sankey_data: @cashflow_sankey_data %>
+      <%= render "pages/cashflow_sankey", sankey_data: @cashflow_sankey_data, interactive: true, period_key: @cashflow_period.key %>
+
+      <%# --- Category drill-down transactions (loaded on Sankey click) --- %>
+      <%= turbo_frame_tag "reports_transactions" %>
 
       <%# --- Category breakdowns (Monarch-style) --- %>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">

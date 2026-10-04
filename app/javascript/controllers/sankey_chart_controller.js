@@ -8,7 +8,10 @@ export default class extends Controller {
     data: Object,
     nodeWidth: { type: Number, default: 15 },
     nodePadding: { type: Number, default: 20 },
-    currencySymbol: { type: String, default: "$" }
+    currencySymbol: { type: String, default: "$" },
+    transactionsUrl: { type: String, default: "" },
+    period: { type: String, default: "" },
+    frame: { type: String, default: "" }
   };
 
   connect() {
@@ -91,7 +94,7 @@ export default class extends Controller {
     });
 
     // Draw links
-    svg
+    const linkPaths = svg
       .append("g")
       .attr("fill", "none")
       .selectAll("path")
@@ -107,9 +110,13 @@ export default class extends Controller {
         return path;
       })
       .attr("stroke", (d, i) => `url(#link-gradient-${d.source.index}-${d.target.index}-${i})`)
-      .attr("stroke-width", (d) => Math.max(1, d.width))
+      .attr("stroke-width", (d) => Math.max(1, d.width));
+
+    linkPaths
       .append("title")
       .text((d) => `${nodes[d.source.index].name} → ${nodes[d.target.index].name}: ${this.currencySymbolValue}${Number.parseFloat(d.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${d.percentage}%)`);
+
+    this.linkPaths = linkPaths;
 
     // Draw nodes
     const node = svg
@@ -174,6 +181,17 @@ export default class extends Controller {
         return "var(--color-gray-500)"; // Fallback, likely unused with current data
       });
 
+    // Interactive drill-down: clicking a category node highlights its flows and
+    // loads that category's transactions (for the selected period) into a frame.
+    if (this.interactive) {
+      node
+        .filter((d) => d.category_name)
+        .style("cursor", "pointer")
+        .on("click", (event, d) => this.#onNodeClick(d))
+        .append("title")
+        .text((d) => `Click to view ${d.category_name} transactions`);
+    }
+
     const stimulusControllerInstance = this;
     node
       .append("text")
@@ -201,4 +219,31 @@ export default class extends Controller {
           .text(stimulusControllerInstance.currencySymbolValue + Number.parseFloat(d.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
       });
   }
-} 
+
+  get interactive() {
+    return this.transactionsUrlValue.length > 0 && this.frameValue.length > 0;
+  }
+
+  #onNodeClick(node) {
+    this.#highlightNode(node);
+
+    const frame = document.getElementById(this.frameValue);
+    if (!frame) return;
+
+    const params = new URLSearchParams();
+    params.set("category", node.category_name);
+    if (this.periodValue) params.set("cashflow_period", this.periodValue);
+
+    frame.setAttribute("src", `${this.transactionsUrlValue}?${params.toString()}`);
+    frame.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  // Emphasize the links touching the clicked node; fade the rest.
+  #highlightNode(node) {
+    if (!this.linkPaths) return;
+
+    this.linkPaths.attr("stroke-opacity", (link) =>
+      link.source.index === node.index || link.target.index === node.index ? 1 : 0.15
+    );
+  }
+}

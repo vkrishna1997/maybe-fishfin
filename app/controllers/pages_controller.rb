@@ -36,6 +36,30 @@ class PagesController < ApplicationController
     @breadcrumbs = [ [ "Home", root_path ], [ "Reports", nil ] ]
   end
 
+  # Drill-down for the Reports Sankey: transactions in one category over the
+  # currently selected period. Rendered into a Turbo Frame when a Sankey node
+  # is clicked.
+  def report_transactions
+    @report_period = resolve_cashflow_period(params[:cashflow_period])
+    @report_category_name = params[:category].to_s
+    @report_currency = Current.family.currency
+
+    search = Transaction::Search.new(
+      Current.family,
+      filters: {
+        categories: [ @report_category_name ],
+        start_date: @report_period.start_date.to_s,
+        end_date: @report_period.end_date.to_s
+      }
+    )
+
+    @report_transactions = search.transactions_scope
+                                 .reverse_chronological
+                                 .includes({ entry: :account }, :category, :merchant)
+                                 .limit(100)
+    @report_cashflow_period_key = params[:cashflow_period]
+  end
+
   def cashflow
     load_cashflow_overview(params[:cashflow_period])
 
@@ -146,15 +170,7 @@ class PagesController < ApplicationController
     def load_cashflow_overview(period_param)
       @accounts = Current.family.accounts.visible
 
-      @cashflow_period = if period_param.present?
-        begin
-          Period.from_key(period_param)
-        rescue Period::InvalidKeyError
-          Period.last_30_days
-        end
-      else
-        Period.last_30_days
-      end
+      @cashflow_period = resolve_cashflow_period(period_param)
 
       income_statement = Current.family.income_statement
       @income_totals = income_statement.income_totals(period: @cashflow_period)
@@ -168,6 +184,20 @@ class PagesController < ApplicationController
       end
 
       @cashflow_sankey_data = build_cashflow_sankey_data(@income_totals, @expense_totals, Current.family.currency)
+    end
+
+    # Resolves the cash-flow period from a period key, defaulting to the last
+    # 30 days when absent or invalid.
+    def resolve_cashflow_period(period_param)
+      if period_param.present?
+        begin
+          Period.from_key(period_param)
+        rescue Period::InvalidKeyError
+          Period.last_30_days
+        end
+      else
+        Period.last_30_days
+      end
     end
 
     # Income/expense/net totals for each of the last `months` calendar months,
@@ -261,9 +291,9 @@ class PagesController < ApplicationController
       node_indices = {} # Memoize node indices by a unique key: "type_categoryid"
 
       # Helper to add/find node and return its index
-      add_node = ->(unique_key, display_name, value, percentage, color) {
+      add_node = ->(unique_key, display_name, value, percentage, color, meta = {}) {
         node_indices[unique_key] ||= begin
-          nodes << { name: display_name, value: value.to_f.round(2), percentage: percentage.to_f.round(1), color: color }
+          nodes << { name: display_name, value: value.to_f.round(2), percentage: percentage.to_f.round(1), color: color }.merge(meta)
           nodes.size - 1
         end
       }
@@ -292,7 +322,8 @@ class PagesController < ApplicationController
           node_display_name,
           val,
           percentage_of_total_income,
-          node_color
+          node_color,
+          { category_name: ct.category.name, node_type: "income" }
         )
 
         links << {
@@ -322,7 +353,8 @@ class PagesController < ApplicationController
           node_display_name,
           val,
           percentage_of_total_expense,
-          node_color
+          node_color,
+          { category_name: ct.category.name, node_type: "expense" }
         )
 
         links << {
