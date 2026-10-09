@@ -1,6 +1,8 @@
 require "test_helper"
 
 class RulesControllerTest < ActionDispatch::IntegrationTest
+  include EntriesTestHelper
+
   setup do
     sign_in @user = users(:family_admin)
   end
@@ -8,6 +10,31 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
   test "should get new" do
     get new_rule_url(resource_type: "transaction")
     assert_response :success
+  end
+
+  test "new prefills merchant condition and category action from a transaction" do
+    family = @user.family
+    merchant = family.merchants.create!(name: "Prefill Coffee", type: "FamilyMerchant")
+    category = categories(:food_and_drink)
+    account = family.accounts.create!(name: "Checking", balance: 0, currency: "USD", accountable: Depository.new)
+    entry = create_transaction(account: account, name: "Prefill Coffee", amount: 5, merchant: merchant, category: category)
+
+    get new_rule_url(resource_type: "transaction", transaction_id: entry.transaction.id)
+
+    assert_response :success
+    assert_select "option[selected][value=?]", merchant.id.to_s
+    assert_select "option[selected][value=?]", category.id.to_s
+  end
+
+  test "new falls back to a name condition when the transaction has no merchant" do
+    family = @user.family
+    account = family.accounts.create!(name: "Checking", balance: 0, currency: "USD", accountable: Depository.new)
+    entry = create_transaction(account: account, name: "No Merchant Vendor", amount: 9)
+
+    get new_rule_url(resource_type: "transaction", transaction_id: entry.transaction.id)
+
+    assert_response :success
+    assert_select "input[value=?]", "No Merchant Vendor"
   end
 
   test "should get edit" do
