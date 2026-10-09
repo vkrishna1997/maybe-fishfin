@@ -15,6 +15,8 @@ export default class extends Controller {
   };
 
   connect() {
+    this.selectedNodeIndex = null;
+    this.#buildTooltip();
     this.resizeObserver = new ResizeObserver(() => this.#draw());
     this.resizeObserver.observe(this.element);
     this.#draw();
@@ -22,6 +24,53 @@ export default class extends Controller {
 
   disconnect() {
     this.resizeObserver?.disconnect();
+    this.tooltip?.remove();
+  }
+
+  // Floating tooltip shown while hovering nodes/flows (Monarch-style).
+  #buildTooltip() {
+    if (getComputedStyle(this.element).position === "static") {
+      this.element.style.position = "relative";
+    }
+    this.tooltip = document.createElement("div");
+    this.tooltip.className =
+      "pointer-events-none absolute z-20 hidden rounded-md bg-gray-700 fg-inverse text-xs font-medium px-2.5 py-1.5 shadow-lg whitespace-nowrap";
+    this.element.appendChild(this.tooltip);
+  }
+
+  #showTooltip(html, event) {
+    if (!this.tooltip) return;
+    this.tooltip.innerHTML = html;
+    this.tooltip.classList.remove("hidden");
+    this.#moveTooltip(event);
+  }
+
+  #moveTooltip(event) {
+    if (!this.tooltip) return;
+    const rect = this.element.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const offset = 14;
+    const tipWidth = this.tooltip.offsetWidth;
+    const tipHeight = this.tooltip.offsetHeight;
+    const left = Math.min(Math.max(0, x + offset), rect.width - tipWidth);
+    const top = Math.min(Math.max(0, y - tipHeight - offset / 2), rect.height - tipHeight);
+    this.tooltip.style.left = `${left}px`;
+    this.tooltip.style.top = `${top}px`;
+  }
+
+  #hideTooltip() {
+    this.tooltip?.classList.add("hidden");
+  }
+
+  #money(value) {
+    return (
+      this.currencySymbolValue +
+      Number.parseFloat(value).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
   }
 
   #draw() {
@@ -110,13 +159,31 @@ export default class extends Controller {
         return path;
       })
       .attr("stroke", (d, i) => `url(#link-gradient-${d.source.index}-${d.target.index}-${i})`)
-      .attr("stroke-width", (d) => Math.max(1, d.width));
-
-    linkPaths
-      .append("title")
-      .text((d) => `${nodes[d.source.index].name} → ${nodes[d.target.index].name}: ${this.currencySymbolValue}${Number.parseFloat(d.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${d.percentage}%)`);
+      .attr("stroke-width", (d) => Math.max(1, d.width))
+      .attr("stroke-opacity", 1);
 
     this.linkPaths = linkPaths;
+
+    linkPaths
+      .on("mousemove", (event, d) => {
+        this.#emphasizeLink(d);
+        this.#showTooltip(
+          `${nodes[d.source.index].name} &rarr; ${nodes[d.target.index].name}<br><span class="font-mono">${this.#money(d.value)}</span> &middot; ${d.percentage}%`,
+          event
+        );
+      })
+      .on("mouseleave", () => {
+        this.#hideTooltip();
+        this.#resetEmphasis();
+      });
+
+    // A flow into a category is clickable and drills into that category.
+    if (this.interactive) {
+      linkPaths
+        .filter((d) => d.target.category_name)
+        .style("cursor", "pointer")
+        .on("click", (event, d) => this.#onNodeClick(d.target));
+    }
 
     // Draw nodes
     const node = svg
@@ -124,6 +191,8 @@ export default class extends Controller {
       .selectAll("g")
       .data(sankeyData.nodes)
       .join("g");
+
+    this.nodeSel = node;
 
     const cornerRadius = 8;
 
@@ -181,15 +250,28 @@ export default class extends Controller {
         return "var(--color-gray-500)"; // Fallback, likely unused with current data
       });
 
+    // Hover any node to trace its connected flows and show its total.
+    node
+      .on("mousemove", (event, d) => {
+        this.#emphasizeNode(d);
+        const pctLabel = d.percentage != null ? ` &middot; ${d.percentage}%` : "";
+        this.#showTooltip(
+          `${d.name}<br><span class="font-mono">${this.#money(d.value)}</span>${pctLabel}`,
+          event
+        );
+      })
+      .on("mouseleave", () => {
+        this.#hideTooltip();
+        this.#resetEmphasis();
+      });
+
     // Interactive drill-down: clicking a category node highlights its flows and
     // loads that category's transactions (for the selected period) into a frame.
     if (this.interactive) {
       node
         .filter((d) => d.category_name)
         .style("cursor", "pointer")
-        .on("click", (event, d) => this.#onNodeClick(d))
-        .append("title")
-        .text((d) => `Click to view ${d.category_name} transactions`);
+        .on("click", (event, d) => this.#onNodeClick(d));
     }
 
     const stimulusControllerInstance = this;
@@ -218,6 +300,9 @@ export default class extends Controller {
         financialDetailsTspan.append("tspan")
           .text(stimulusControllerInstance.currencySymbolValue + Number.parseFloat(d.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
       });
+
+    // Re-apply a sticky selection that survived a resize-triggered redraw.
+    if (this.selectedNodeIndex != null) this.#resetEmphasis();
   }
 
   get interactive() {
@@ -225,7 +310,17 @@ export default class extends Controller {
   }
 
   #onNodeClick(node) {
-    this.#highlightNode(node);
+    // Toggle selection off when the already-selected category is clicked again.
+    if (this.selectedNodeIndex === node.index) {
+      this.selectedNodeIndex = null;
+      this.#resetEmphasis();
+      const openFrame = document.getElementById(this.frameValue);
+      if (openFrame) openFrame.innerHTML = "";
+      return;
+    }
+
+    this.selectedNodeIndex = node.index;
+    this.#emphasizeNode(node);
 
     const frame = document.getElementById(this.frameValue);
     if (!frame) return;
@@ -238,12 +333,37 @@ export default class extends Controller {
     frame.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-  // Emphasize the links touching the clicked node; fade the rest.
-  #highlightNode(node) {
-    if (!this.linkPaths) return;
-
-    this.linkPaths.attr("stroke-opacity", (link) =>
-      link.source.index === node.index || link.target.index === node.index ? 1 : 0.15
+  // Emphasize every flow touching a node (and the node itself); fade the rest.
+  #emphasizeNode(node) {
+    this.#applyEmphasis(
+      (link) => link.source.index === node.index || link.target.index === node.index,
+      (n) => n.index === node.index
     );
+  }
+
+  // Emphasize a single flow and the two nodes it connects.
+  #emphasizeLink(link) {
+    this.#applyEmphasis(
+      (l) => l.index === link.index,
+      (n) => n.index === link.source.index || n.index === link.target.index
+    );
+  }
+
+  #applyEmphasis(linkActive, nodeActive) {
+    this.linkPaths?.attr("stroke-opacity", (l) => (linkActive(l) ? 1 : 0.12));
+    this.nodeSel?.attr("opacity", (n) => (nodeActive(n) ? 1 : 0.35));
+  }
+
+  // Restore full opacity, or fall back to the sticky selected node if one is set.
+  #resetEmphasis() {
+    if (this.selectedNodeIndex != null) {
+      const selected = this.nodeSel?.data().find((n) => n.index === this.selectedNodeIndex);
+      if (selected) {
+        this.#emphasizeNode(selected);
+        return;
+      }
+    }
+    this.linkPaths?.attr("stroke-opacity", 1);
+    this.nodeSel?.attr("opacity", 1);
   }
 }
