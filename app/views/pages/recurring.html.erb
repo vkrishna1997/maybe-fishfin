@@ -33,6 +33,8 @@
       </div>
     </div>
 
+    <%= render "pages/recurring_review", series: @recurring_flagged, currency: currency if @recurring_flagged.any? %>
+
     <%= render "pages/recurring_table", title: "Upcoming expenses", series: @recurring_expenses, currency: currency, testid: "recurring-expenses-table" if @recurring_expenses.any? %>
     <%= render "pages/recurring_table", title: "Recurring income", series: @recurring_incomes, currency: currency, testid: "recurring-incomes-table" if @recurring_incomes.any? %>
   <% end %>
