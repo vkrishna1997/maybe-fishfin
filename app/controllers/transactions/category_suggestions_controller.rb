@@ -5,7 +5,7 @@ class Transactions::CategorySuggestionsController < ApplicationController
   def create
     applied = 0
 
-    suggestions_params.each do |transaction_id, category_id|
+    submitted_suggestions.each do |transaction_id, category_id|
       next if category_id.blank?
 
       transaction = Current.family.transactions.find_by(id: transaction_id)
@@ -22,7 +22,12 @@ class Transactions::CategorySuggestionsController < ApplicationController
   end
 
   private
-    def suggestions_params
-      params.fetch(:suggestions, {}).permit!.to_h
+    # A map of { transaction_id => category_id } with dynamic keys, so each pair
+    # is read directly rather than mass-assigned.
+    def submitted_suggestions
+      raw = params[:suggestions]
+      return {} unless raw.respond_to?(:each_pair)
+
+      raw.each_pair.map { |transaction_id, category_id| [ transaction_id.to_s, category_id.to_s ] }
     end
 end
