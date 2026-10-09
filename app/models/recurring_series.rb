@@ -6,7 +6,7 @@ class RecurringSeries
   Series = Data.define(
     :key, :name, :merchant_name, :category_name, :classification,
     :amount, :currency, :cadence, :interval_days, :occurrences,
-    :last_date, :next_date, :account_name
+    :last_date, :next_date, :account_name, :last_amount, :review_reasons
   ) do
     def expense?
       classification == "expense"
@@ -14,6 +14,14 @@ class RecurringSeries
 
     def amount_money
       Money.new(amount, currency)
+    end
+
+    def last_amount_money
+      Money.new(last_amount, currency)
+    end
+
+    def needs_review?
+      review_reasons.any?
     end
   end
 
@@ -29,6 +37,10 @@ class RecurringSeries
   ].freeze
 
   MIN_OCCURRENCES = 3
+
+  # Minimum deviation from the median amount (as a fraction) before the latest
+  # charge is flagged as a price change.
+  AMOUNT_CHANGE_THRESHOLD = 0.25
 
   def initialize(family, lookback_months: 12)
     @family = family
@@ -47,6 +59,11 @@ class RecurringSeries
 
   def incomes
     series.reject(&:expense?)
+  end
+
+  # Series the user should look at: overdue, changed amount, or uncategorized.
+  def flagged
+    series.select(&:needs_review?).sort_by(&:next_date)
   end
 
   # Estimated total monthly outflow across detected recurring expenses.
@@ -110,6 +127,8 @@ class RecurringSeries
       sample = rows.max_by { |r| r[:date] }
       amount = median(rows.map { |r| r[:amount] })
       last_date = dates.last
+      last_amount = sample[:amount]
+      next_date = last_date + interval
 
       Series.new(
         key: sample[:key],
@@ -123,9 +142,41 @@ class RecurringSeries
         interval_days: interval,
         occurrences: rows.size,
         last_date: last_date,
-        next_date: last_date + interval,
-        account_name: sample[:account_name]
+        next_date: next_date,
+        account_name: sample[:account_name],
+        last_amount: last_amount.abs,
+        review_reasons: review_reasons(
+          next_date: next_date,
+          interval: interval,
+          median_amount: amount.abs,
+          last_amount: last_amount.abs,
+          category_name: sample[:category_name]
+        )
       )
+    end
+
+    # Human-readable reasons a series should be reviewed. Empty means "looks fine".
+    def review_reasons(next_date:, interval:, median_amount:, last_amount:, category_name:)
+      reasons = []
+
+      days_overdue = (Date.current - next_date).to_i
+      grace = [ (interval * 0.25).round, 3 ].max
+      # Flag a missed/late charge, but not series that ended long ago (likely cancelled).
+      if days_overdue > grace && days_overdue <= interval * 2
+        reasons << "Expected around #{next_date.strftime("%b %d")} — #{days_overdue} days late"
+      end
+
+      if median_amount.positive?
+        change = (last_amount - median_amount).abs / median_amount
+        if change >= AMOUNT_CHANGE_THRESHOLD
+          direction = last_amount > median_amount ? "up" : "down"
+          reasons << "Amount #{direction} to #{Money.new(last_amount, @family.currency).format} (usually #{Money.new(median_amount, @family.currency).format})"
+        end
+      end
+
+      reasons << "No category assigned" if category_name.blank?
+
+      reasons
     end
 
     def cadence_for(interval_days)

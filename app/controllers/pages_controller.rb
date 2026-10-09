@@ -106,6 +106,7 @@ class PagesController < ApplicationController
     detector = RecurringSeries.new(Current.family)
     @recurring_expenses = detector.expenses
     @recurring_incomes = detector.incomes
+    @recurring_flagged = detector.flagged
     @monthly_expense_estimate = detector.monthly_expense_estimate
     @recurring_currency = Current.family.currency
 
