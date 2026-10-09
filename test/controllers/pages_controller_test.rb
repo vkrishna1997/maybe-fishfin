@@ -113,6 +113,19 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "p", text: "Child dinner"
   end
 
+  test "reports sankey includes expense subcategory nodes" do
+    parent = categories(:food_and_drink)
+    child = categories(:subcategory)
+
+    create_transaction(name: "Parent lunch", amount: 20, date: Date.current, category: parent)
+    create_transaction(name: "Child dinner", amount: 30, date: Date.current, category: child)
+
+    get reports_path(cashflow_period: "last_30_days")
+    assert_response :ok
+    assert_select "[data-sankey-chart-data-value*=?]", child.name
+    assert_select "[data-sankey-chart-data-value*=?]", "· Other"
+  end
+
   test "cashflow" do
     get cashflow_path
     assert_response :ok

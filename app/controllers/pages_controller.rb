@@ -344,67 +344,91 @@ class PagesController < ApplicationController
       # --- Create Central Cash Flow Node ---
       cash_flow_idx = add_node.call("cash_flow_node", "Cash Flow", total_income_val, 0, "var(--color-success)", { node_type: "cash_flow", classification: "income" })
 
-      # --- Process Income Side (Top-level categories only) ---
-      income_totals.category_totals.each do |ct|
-        # Skip subcategories – only include root income categories
-        next if ct.category.parent_id.present?
+      # Processes one classification side into up-to-4-level flows:
+      #   income:  subcategory -> parent -> Cash Flow
+      #   expense: Cash Flow -> parent -> subcategory
+      # A parent that also has its own direct transactions gets an "· Other"
+      # leaf so the flows into/out of it stay balanced.
+      process_side = ->(period_totals, side, side_total, default_color) {
+        children_by_parent = Hash.new { |h, k| h[k] = [] }
+        period_totals.category_totals.each do |ct|
+          children_by_parent[ct.category.parent_id] << ct if ct.category.parent_id.present?
+        end
 
-        val = ct.total.to_f.round(2)
-        next if val.zero?
+        period_totals.category_totals.each do |ct|
+          next if ct.category.parent_id.present? # roots only in the outer loop
 
-        percentage_of_total_income = total_income_val.zero? ? 0 : (val / total_income_val * 100).round(1)
+          parent_val = ct.total.to_f.round(2)
+          next if parent_val.zero?
 
-        node_display_name = ct.category.name
-        node_color = ct.category.color.presence || Category::COLORS.sample
+          parent_pct = side_total.zero? ? 0 : (parent_val / side_total * 100).round(1)
+          parent_color = ct.category.color.presence || default_color
 
-        current_cat_idx = add_node.call(
-          "income_#{ct.category.id}",
-          node_display_name,
-          val,
-          percentage_of_total_income,
-          node_color,
-          { category_name: ct.category.name, node_type: "income" }
-        )
+          parent_idx = add_node.call(
+            "#{side}_#{ct.category.id}",
+            ct.category.name,
+            parent_val,
+            parent_pct,
+            parent_color,
+            { category_name: ct.category.name, node_type: side.to_s }
+          )
 
-        links << {
-          source: current_cat_idx,
-          target: cash_flow_idx,
-          value: val,
-          color: node_color,
-          percentage: percentage_of_total_income
-        }
-      end
+          if side == :income
+            links << { source: parent_idx, target: cash_flow_idx, value: parent_val, color: parent_color, percentage: parent_pct }
+          else
+            links << { source: cash_flow_idx, target: parent_idx, value: parent_val, color: parent_color, percentage: parent_pct }
+          end
 
-      # --- Process Expense Side (Top-level categories only) ---
-      expense_totals.category_totals.each do |ct|
-        # Skip subcategories – only include root expense categories to keep Sankey shallow
-        next if ct.category.parent_id.present?
+          # --- 4th level: subcategories of this parent ---
+          children = children_by_parent[ct.category.id].select { |c| c.total.to_f.round(2).positive? }
+          children_sum = 0
 
-        val = ct.total.to_f.round(2)
-        next if val.zero?
+          children.each do |cct|
+            child_val = cct.total.to_f.round(2)
+            children_sum += child_val
+            child_pct = parent_val.zero? ? 0 : (child_val / parent_val * 100).round(1)
+            child_color = cct.category.color.presence || parent_color
 
-        percentage_of_total_expense = total_expense_val.zero? ? 0 : (val / total_expense_val * 100).round(1)
+            child_idx = add_node.call(
+              "#{side}_#{cct.category.id}",
+              cct.category.name,
+              child_val,
+              child_pct,
+              child_color,
+              { category_name: cct.category.name, node_type: side.to_s }
+            )
 
-        node_display_name = ct.category.name
-        node_color = ct.category.color.presence || Category::UNCATEGORIZED_COLOR
+            if side == :income
+              links << { source: child_idx, target: parent_idx, value: child_val, color: child_color, percentage: child_pct }
+            else
+              links << { source: parent_idx, target: child_idx, value: child_val, color: child_color, percentage: child_pct }
+            end
+          end
 
-        current_cat_idx = add_node.call(
-          "expense_#{ct.category.id}",
-          node_display_name,
-          val,
-          percentage_of_total_expense,
-          node_color,
-          { category_name: ct.category.name, node_type: "expense" }
-        )
+          # Parent's own direct spend/earnings (not attributed to a subcategory).
+          remainder = (parent_val - children_sum).round(2)
+          next unless children.any? && remainder.positive?
 
-        links << {
-          source: cash_flow_idx,
-          target: current_cat_idx,
-          value: val,
-          color: node_color,
-          percentage: percentage_of_total_expense
-        }
-      end
+          remainder_pct = parent_val.zero? ? 0 : (remainder / parent_val * 100).round(1)
+          other_idx = add_node.call(
+            "#{side}_#{ct.category.id}_other",
+            "#{ct.category.name} · Other",
+            remainder,
+            remainder_pct,
+            parent_color,
+            { node_type: side.to_s }
+          )
+
+          if side == :income
+            links << { source: other_idx, target: parent_idx, value: remainder, color: parent_color, percentage: remainder_pct }
+          else
+            links << { source: parent_idx, target: other_idx, value: remainder, color: parent_color, percentage: remainder_pct }
+          end
+        end
+      }
+
+      process_side.call(income_totals, :income, total_income_val, Category::COLORS.sample)
+      process_side.call(expense_totals, :expense, total_expense_val, Category::UNCATEGORIZED_COLOR)
 
       # --- Process Surplus ---
       leftover = (total_income_val - total_expense_val).round(2)
