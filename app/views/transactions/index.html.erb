@@ -45,6 +45,8 @@
 
   <%= render "summary", totals: @search.totals %>
 
+  <%= render "transactions/category_suggestions", suggestions: @category_suggestions %>
+
   <div id="transactions"
        data-controller="bulk-select"
        data-bulk-select-singular-label-value="<%= t(".transaction") %>"

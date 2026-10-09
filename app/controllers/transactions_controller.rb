@@ -22,6 +22,8 @@ class TransactionsController < ApplicationController
                        )
 
     @pagy, @transactions = pagy(base_scope, limit: per_page)
+
+    @category_suggestions = Family::CategorySuggester.new(Current.family).suggestions
   end
 
   def clear_filter
