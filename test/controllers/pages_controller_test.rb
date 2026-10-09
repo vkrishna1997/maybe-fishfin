@@ -22,7 +22,9 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     get reports_path
     assert_response :ok
     assert_select "h1", text: "Reports"
-    assert_select "h2", text: "Cash Flow"
+    assert_select "button", text: "Cash Flow"
+    assert_select "button", text: "Spending"
+    assert_select "button", text: "Income"
   end
 
   test "reports shows cash flow summary tiles" do
@@ -34,11 +36,18 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "p", text: "Savings Rate"
   end
 
-  test "reports shows category breakdown sections" do
+  test "reports shows spending and income donut tabs" do
     get reports_path
     assert_response :ok
-    assert_select "h3", text: "Spending by category"
-    assert_select "h3", text: "Income by category"
+    assert_select "h2", text: "Spending"
+    assert_select "h2", text: "Income"
+    assert_select "[data-controller='donut-chart']", minimum: 1
+  end
+
+  test "reports sankey defaults to the income classification" do
+    get reports_path
+    assert_response :ok
+    assert_select "[data-sankey-chart-default-classification-value='income']"
   end
 
   test "reports shows a period-over-period comparison label" do
@@ -76,6 +85,32 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     get report_transactions_path(category: "Food & Drink", cashflow_period: "not_a_real_period")
     assert_response :ok
     assert_select "[data-testid='report-transactions']"
+  end
+
+  test "report transactions classification drill-down shows all income" do
+    get report_transactions_path(classification: "income", cashflow_period: "last_30_days")
+    assert_response :ok
+    assert_select "[data-testid='report-transactions']"
+    assert_select "h3", text: "All income"
+  end
+
+  test "report transactions classification drill-down shows all spending" do
+    get report_transactions_path(classification: "expense", cashflow_period: "last_30_days")
+    assert_response :ok
+    assert_select "h3", text: "All spending"
+  end
+
+  test "category drill-down includes subcategory transactions" do
+    parent = categories(:food_and_drink)
+    child = categories(:subcategory)
+
+    create_transaction(name: "Parent lunch", amount: 20, date: Date.current, category: parent)
+    create_transaction(name: "Child dinner", amount: 30, date: Date.current, category: child)
+
+    get report_transactions_path(category: parent.name, cashflow_period: "last_30_days")
+    assert_response :ok
+    assert_select "p", text: "Parent lunch"
+    assert_select "p", text: "Child dinner"
   end
 
   test "cashflow" do

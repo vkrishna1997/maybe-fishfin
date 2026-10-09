@@ -12,7 +12,7 @@ class ReportsTest < ApplicationSystemTestCase
 
     assert_current_path reports_path
     assert_selector "h1", text: "Reports"
-    assert_selector "h2", text: "Cash Flow"
+    assert_selector "button", text: "Cash Flow"
   end
 
   test "reports page shows cash flow summary tiles" do
@@ -24,11 +24,12 @@ class ReportsTest < ApplicationSystemTestCase
     assert_text "Savings Rate"
   end
 
-  test "reports page shows category breakdown sections" do
+  test "reports page shows spending and income tabs" do
     visit reports_path
 
-    assert_selector "h3", text: /Spending by category/i
-    assert_selector "h3", text: /Income by category/i
+    assert_selector "button", text: "Cash Flow"
+    assert_selector "button", text: "Spending"
+    assert_selector "button", text: "Income"
   end
 
   test "reports period selector reloads the cash flow section" do
@@ -40,7 +41,7 @@ class ReportsTest < ApplicationSystemTestCase
     end
 
     assert_current_path reports_path, ignore_query: true
-    assert_selector "h2", text: "Cash Flow"
+    assert_selector "button", text: "Cash Flow"
   end
 
   test "dashboard no longer renders the cash flow sankey" do

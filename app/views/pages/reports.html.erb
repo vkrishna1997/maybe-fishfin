@@ -15,9 +15,7 @@
   <%= turbo_frame_tag "reports_cashflow_section" do %>
     <div class="space-y-6">
       <%# --- Period selector --- %>
-      <div class="flex justify-between items-center gap-4">
-        <h2 class="text-lg font-medium text-primary">Cash Flow</h2>
-
+      <div class="flex justify-end items-center gap-4">
         <%= form_with url: reports_path, method: :get, data: { controller: "auto-submit-form", turbo_frame: "reports_cashflow_section" } do |form| %>
           <%= form.select :cashflow_period,
                     Period.as_options,
@@ -35,25 +33,42 @@
             prior_expense_total: @prior_expense_total,
             comparison_label: @comparison_label %>
 
-      <%# --- Sankey (full width, tall) --- %>
-      <%= render "pages/cashflow_sankey", sankey_data: @cashflow_sankey_data, interactive: true, period_key: @cashflow_period.key %>
+      <%# --- Sub-tabs: Cash Flow / Spending / Income --- %>
+      <%= render DS::Tabs.new(active_tab: @reports_tab, session_key: "reports_tab") do |tabs| %>
+        <% tabs.with_nav(classes: "max-w-md") do |nav| %>
+          <% nav.with_btn(id: "cashflow", label: "Cash Flow") %>
+          <% nav.with_btn(id: "spending", label: "Spending") %>
+          <% nav.with_btn(id: "income", label: "Income") %>
+        <% end %>
 
-      <%# --- Category drill-down transactions (loaded on Sankey click) --- %>
-      <%= turbo_frame_tag "reports_transactions" %>
+        <%# Cash Flow: interactive Sankey + drill-down transactions %>
+        <% tabs.with_panel(tab_id: "cashflow") do %>
+          <div class="space-y-6">
+            <%= render "pages/cashflow_sankey", sankey_data: @cashflow_sankey_data, interactive: true, period_key: @cashflow_period.key %>
+            <%= turbo_frame_tag "reports_transactions" %>
+          </div>
+        <% end %>
 
-      <%# --- Category breakdowns (Monarch-style) --- %>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <%= render "pages/category_breakdown",
-              title: "Spending by category",
-              category_totals: @expense_category_totals,
-              total: expense_val,
-              currency: currency %>
-        <%= render "pages/category_breakdown",
-              title: "Income by category",
-              category_totals: @income_category_totals,
-              total: income_val,
-              currency: currency %>
-      </div>
+        <%# Spending: expense donut + category breakdown %>
+        <% tabs.with_panel(tab_id: "spending") do %>
+          <%= render "pages/category_donut",
+                title: "Spending",
+                segments: @expense_donut_segments,
+                total: expense_val,
+                currency: currency,
+                empty_text: "No spending for this time period" %>
+        <% end %>
+
+        <%# Income: income donut + category breakdown %>
+        <% tabs.with_panel(tab_id: "income") do %>
+          <%= render "pages/category_donut",
+                title: "Income",
+                segments: @income_donut_segments,
+                total: income_val,
+                currency: currency,
+                empty_text: "No income for this time period" %>
+        <% end %>
+      <% end %>
     </div>
   <% end %>
 </div>
