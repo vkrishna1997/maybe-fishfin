@@ -11,15 +11,17 @@ export default class extends Controller {
     currencySymbol: { type: String, default: "$" },
     transactionsUrl: { type: String, default: "" },
     period: { type: String, default: "" },
-    frame: { type: String, default: "" }
+    frame: { type: String, default: "" },
+    defaultClassification: { type: String, default: "" }
   };
 
   connect() {
-    this.selectedNodeIndex = null;
+    this.selection = null;
     this.#buildTooltip();
     this.resizeObserver = new ResizeObserver(() => this.#draw());
     this.resizeObserver.observe(this.element);
     this.#draw();
+    this.#applyDefaultSelection();
   }
 
   disconnect() {
@@ -109,7 +111,7 @@ export default class extends Controller {
     sankeyData.links.forEach((link, i) => {
       const gradientId = `link-gradient-${link.source.index}-${link.target.index}-${i}`;
 
-      const getStopColorWithOpacity = (nodeColorInput, opacity = 0.1) => {
+      const getStopColorWithOpacity = (nodeColorInput, opacity = 0.5) => {
         let colorStr = nodeColorInput || "var(--color-gray-400)";
         if (colorStr === "var(--color-success)") {
           colorStr = "#10A861"; // Hex for --color-green-600
@@ -177,10 +179,11 @@ export default class extends Controller {
         this.#resetEmphasis();
       });
 
-    // A flow into a category is clickable and drills into that category.
+    // A flow is clickable: expense flows drill into a category, income flows
+    // (into the central Cash Flow node) select the income classification.
     if (this.interactive) {
       linkPaths
-        .filter((d) => d.target.category_name)
+        .filter((d) => d.target.category_name || d.target.classification)
         .style("cursor", "pointer")
         .on("click", (event, d) => this.#onNodeClick(d.target));
     }
@@ -265,11 +268,11 @@ export default class extends Controller {
         this.#resetEmphasis();
       });
 
-    // Interactive drill-down: clicking a category node highlights its flows and
-    // loads that category's transactions (for the selected period) into a frame.
+    // Interactive drill-down: clicking a category node (or the central Cash Flow
+    // node) highlights its flows and loads the matching transactions into a frame.
     if (this.interactive) {
       node
-        .filter((d) => d.category_name)
+        .filter((d) => d.category_name || d.classification)
         .style("cursor", "pointer")
         .on("click", (event, d) => this.#onNodeClick(d));
     }
@@ -302,35 +305,74 @@ export default class extends Controller {
       });
 
     // Re-apply a sticky selection that survived a resize-triggered redraw.
-    if (this.selectedNodeIndex != null) this.#resetEmphasis();
+    if (this.selection) this.#resetEmphasis();
   }
 
   get interactive() {
     return this.transactionsUrlValue.length > 0 && this.frameValue.length > 0;
   }
 
+  // Select the income aggregate on first load so income transactions show.
+  #applyDefaultSelection() {
+    if (!this.interactive || !this.defaultClassificationValue || this.selection) return;
+    const cls = this.defaultClassificationValue;
+    const central = this.nodeSel?.data().find((n) => n.classification === cls);
+    if (!central) return;
+    this.#selectClassification(cls, central.index, { scroll: false });
+  }
+
   #onNodeClick(node) {
+    if (node.category_name) {
+      this.#selectCategory(node);
+    } else if (node.classification) {
+      this.#selectClassification(node.classification, node.index);
+    }
+  }
+
+  #selectCategory(node) {
     // Toggle selection off when the already-selected category is clicked again.
-    if (this.selectedNodeIndex === node.index) {
-      this.selectedNodeIndex = null;
-      this.#resetEmphasis();
-      const openFrame = document.getElementById(this.frameValue);
-      if (openFrame) openFrame.innerHTML = "";
+    if (this.selection?.type === "node" && this.selection.index === node.index) {
+      this.#clearSelection();
       return;
     }
 
-    this.selectedNodeIndex = node.index;
+    this.selection = { type: "node", index: node.index };
     this.#emphasizeNode(node);
-
-    const frame = document.getElementById(this.frameValue);
-    if (!frame) return;
 
     const params = new URLSearchParams();
     params.set("category", node.category_name);
     if (this.periodValue) params.set("cashflow_period", this.periodValue);
+    this.#loadFrame(params, { scroll: true });
+  }
 
+  #selectClassification(classification, nodeIndex, { scroll = true } = {}) {
+    // Toggle selection off when the already-selected classification is re-clicked.
+    if (this.selection?.type === "classification" && this.selection.value === classification) {
+      this.#clearSelection();
+      return;
+    }
+
+    this.selection = { type: "classification", value: classification, index: nodeIndex };
+    this.#emphasizeClassification(classification);
+
+    const params = new URLSearchParams();
+    params.set("classification", classification);
+    if (this.periodValue) params.set("cashflow_period", this.periodValue);
+    this.#loadFrame(params, { scroll });
+  }
+
+  #clearSelection() {
+    this.selection = null;
+    this.#resetEmphasis();
+    const openFrame = document.getElementById(this.frameValue);
+    if (openFrame) openFrame.innerHTML = "";
+  }
+
+  #loadFrame(params, { scroll }) {
+    const frame = document.getElementById(this.frameValue);
+    if (!frame) return;
     frame.setAttribute("src", `${this.transactionsUrlValue}?${params.toString()}`);
-    frame.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (scroll) frame.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   // Emphasize every flow touching a node (and the node itself); fade the rest.
@@ -339,6 +381,16 @@ export default class extends Controller {
       (link) => link.source.index === node.index || link.target.index === node.index,
       (n) => n.index === node.index
     );
+  }
+
+  // Emphasize every flow belonging to a classification (income or expense) plus
+  // the central Cash Flow node and the matching side's category nodes.
+  #emphasizeClassification(classification) {
+    const linkActive = classification === "income"
+      ? (l) => l.source.node_type === "income"
+      : (l) => l.target.node_type === "expense";
+    const nodeActive = (n) => n.node_type === classification || n.node_type === "cash_flow";
+    this.#applyEmphasis(linkActive, nodeActive);
   }
 
   // Emphasize a single flow and the two nodes it connects.
@@ -350,18 +402,21 @@ export default class extends Controller {
   }
 
   #applyEmphasis(linkActive, nodeActive) {
-    this.linkPaths?.attr("stroke-opacity", (l) => (linkActive(l) ? 1 : 0.12));
-    this.nodeSel?.attr("opacity", (n) => (nodeActive(n) ? 1 : 0.35));
+    this.linkPaths?.attr("stroke-opacity", (l) => (linkActive(l) ? 1 : 0.08));
+    this.nodeSel?.attr("opacity", (n) => (nodeActive(n) ? 1 : 0.25));
   }
 
-  // Restore full opacity, or fall back to the sticky selected node if one is set.
+  // Restore full opacity, or fall back to the sticky selection if one is set.
   #resetEmphasis() {
-    if (this.selectedNodeIndex != null) {
-      const selected = this.nodeSel?.data().find((n) => n.index === this.selectedNodeIndex);
+    if (this.selection?.type === "node") {
+      const selected = this.nodeSel?.data().find((n) => n.index === this.selection.index);
       if (selected) {
         this.#emphasizeNode(selected);
         return;
       }
+    } else if (this.selection?.type === "classification") {
+      this.#emphasizeClassification(this.selection.value);
+      return;
     }
     this.linkPaths?.attr("stroke-opacity", 1);
     this.nodeSel?.attr("opacity", 1);

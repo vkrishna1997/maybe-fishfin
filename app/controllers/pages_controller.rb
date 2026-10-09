@@ -33,31 +33,46 @@ class PagesController < ApplicationController
     @expense_category_totals = ranked_category_totals(@expense_totals)
     @income_category_totals = ranked_category_totals(@income_totals)
 
+    @expense_donut_segments = category_donut_segments(@expense_category_totals)
+    @income_donut_segments = category_donut_segments(@income_category_totals)
+
+    @reports_tab = params[:tab].presence || Current.session&.get_preferred_tab("reports_tab") || "cashflow"
+
     @breadcrumbs = [ [ "Home", root_path ], [ "Reports", nil ] ]
   end
 
-  # Drill-down for the Reports Sankey: transactions in one category over the
-  # currently selected period. Rendered into a Turbo Frame when a Sankey node
-  # is clicked.
+  # Drill-down for the Reports Sankey: transactions for one category (including
+  # its subcategories) or a whole classification (all income / all spending)
+  # over the currently selected period. Rendered into a Turbo Frame when a
+  # Sankey node is clicked.
   def report_transactions
     @report_period = resolve_cashflow_period(params[:cashflow_period])
-    @report_category_name = params[:category].to_s
     @report_currency = Current.family.currency
+    @report_cashflow_period_key = params[:cashflow_period]
+    @report_classification = params[:classification].to_s.presence
 
-    search = Transaction::Search.new(
-      Current.family,
-      filters: {
-        categories: [ @report_category_name ],
-        start_date: @report_period.start_date.to_s,
-        end_date: @report_period.end_date.to_s
-      }
-    )
+    filters = {
+      start_date: @report_period.start_date.to_s,
+      end_date: @report_period.end_date.to_s
+    }
+
+    if @report_classification.in?(%w[income expense])
+      @report_title = @report_classification == "income" ? "All income" : "All spending"
+      @report_type_filter = [ @report_classification ]
+      filters[:types] = @report_type_filter
+    else
+      @report_category_name = params[:category].to_s
+      @report_title = @report_category_name
+      @report_category_names = category_filter_names(@report_category_name)
+      filters[:categories] = @report_category_names
+    end
+
+    search = Transaction::Search.new(Current.family, filters: filters)
 
     @report_transactions = search.transactions_scope
                                  .reverse_chronological
                                  .includes({ entry: :account }, :category, :merchant)
-                                 .limit(100)
-    @report_cashflow_period_key = params[:cashflow_period]
+                                 .limit(500)
   end
 
   def cashflow
@@ -276,6 +291,31 @@ class PagesController < ApplicationController
         .sort_by { |ct| -ct.total.to_d }
     end
 
+    # Donut segments ({id, label, amount, color}) for a ranked list of category
+    # totals. `id` is a selector-safe slug; `label` carries the display name.
+    def category_donut_segments(category_totals)
+      category_totals.each_with_index.filter_map do |ct, index|
+        amount = ct.total.to_f.round(2)
+        next if amount <= 0
+
+        {
+          id: "seg#{index}",
+          label: ct.category.name,
+          amount: amount,
+          color: ct.category.color.presence || Category::UNCATEGORIZED_COLOR
+        }
+      end
+    end
+
+    # A category name plus the names of its subcategories, so a drill-down
+    # captures every transaction the (rolled-up) Sankey node represents.
+    def category_filter_names(name)
+      category = Current.family.categories.find_by(name: name)
+      return [ name ] if category.nil?
+
+      [ name ] + category.subcategories.pluck(:name)
+    end
+
     # Equal-length window immediately preceding the given period, for comparisons.
     def previous_period_for(period)
       prior_end = period.start_date - 1
@@ -302,7 +342,7 @@ class PagesController < ApplicationController
       total_expense_val = expense_totals.total.to_f.round(2)
 
       # --- Create Central Cash Flow Node ---
-      cash_flow_idx = add_node.call("cash_flow_node", "Cash Flow", total_income_val, 0, "var(--color-success)")
+      cash_flow_idx = add_node.call("cash_flow_node", "Cash Flow", total_income_val, 0, "var(--color-success)", { node_type: "cash_flow", classification: "income" })
 
       # --- Process Income Side (Top-level categories only) ---
       income_totals.category_totals.each do |ct|
