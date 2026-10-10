@@ -43,47 +43,57 @@
       <%= render "shared/ruler", classes: "my-2" %>
 
       <div class="relative p-1.5 w-full">
-        <% if @transaction.category %>
-          <%= button_to transaction_path(@transaction.entry),
-                      method: :patch,
-                      data: { turbo_frame: dom_id(@transaction.entry) },
-                      params: { entry: { entryable_type: "Transaction", entryable_attributes: { id: @transaction.id, category_id: nil } } },
-                      class: "flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2 hover:bg-container-inset-hover" do %>
-            <%= icon("minus") %>
+        <%= link_to new_category_path,
+                class: "flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2 hover:bg-container-inset-hover",
+                data: { turbo_frame: "modal" } do %>
+          <%= icon("plus") %>
 
-            <%= t(".clear") %>
-          <% end %>
+          New category
         <% end %>
 
-        <% unless @transaction.transfer? %>
-          <%= link_to new_transaction_transfer_match_path(@transaction.entry),
-                  class: "flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2 hover:bg-container-inset-hover",
-                  data: { turbo_frame: "modal" } do %>
-            <%= icon("refresh-cw") %>
-
-            <p>Match transfer/payment</p>
-          <% end %>
-        <% end %>
-
-        <div class="flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2">
-          <div class="flex items-center gap-2">
-            <%= form_with url: transaction_path(@transaction.entry),
+        <% if @transaction %>
+          <% if @transaction.category %>
+            <%= button_to transaction_path(@transaction.entry),
                         method: :patch,
-                        data: { controller: "auto-submit-form" } do |f| %>
-              <%= f.hidden_field "entry[excluded]", value: !@transaction.entry.excluded %>
-              <%= f.check_box "entry[excluded]",
-                          checked: @transaction.entry.excluded,
-                          class: "checkbox checkbox--light",
-                          data: { auto_submit_form_target: "auto", autosubmit_trigger_event: "change" } %>
+                        data: { turbo_frame: dom_id(@transaction.entry) },
+                        params: { entry: { entryable_type: "Transaction", entryable_attributes: { id: @transaction.id, category_id: nil } } },
+                        class: "flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2 hover:bg-container-inset-hover" do %>
+              <%= icon("minus") %>
+
+              <%= t(".clear") %>
             <% end %>
+          <% end %>
+
+          <% unless @transaction.transfer? %>
+            <%= link_to new_transaction_transfer_match_path(@transaction.entry),
+                    class: "flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2 hover:bg-container-inset-hover",
+                    data: { turbo_frame: "modal" } do %>
+              <%= icon("refresh-cw") %>
+
+              <p>Match transfer/payment</p>
+            <% end %>
+          <% end %>
+
+          <div class="flex text-sm font-medium items-center gap-2 text-secondary w-full rounded-lg p-2">
+            <div class="flex items-center gap-2">
+              <%= form_with url: transaction_path(@transaction.entry),
+                          method: :patch,
+                          data: { controller: "auto-submit-form" } do |f| %>
+                <%= f.hidden_field "entry[excluded]", value: !@transaction.entry.excluded %>
+                <%= f.check_box "entry[excluded]",
+                            checked: @transaction.entry.excluded,
+                            class: "checkbox checkbox--light",
+                            data: { auto_submit_form_target: "auto", autosubmit_trigger_event: "change" } %>
+              <% end %>
+            </div>
+
+            <p>One-time <%= @transaction.entry.amount.negative? ? "income" : "expense" %></p>
+
+            <span class="text-orange-500 ml-auto">
+              <%= icon("asterisk", color: "current") %>
+            </span>
           </div>
-
-          <p>One-time <%= @transaction.entry.amount.negative? ? "income" : "expense" %></p>
-
-          <span class="text-orange-500 ml-auto">
-            <%= icon("asterisk", color: "current") %>
-          </span>
-        </div>
+        <% end %>
       </div>
     </div>
   <% end %>

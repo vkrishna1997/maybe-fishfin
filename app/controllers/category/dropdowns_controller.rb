@@ -7,13 +7,15 @@ class Category::DropdownsController < ApplicationController
 
   private
     def set_from_params
-      if params[:category_id]
+      if params[:category_id].present?
         @selected_category = categories_scope.find(params[:category_id])
       end
 
-      if params[:transaction_id]
+      if params[:transaction_id].present?
         @transaction = Current.family.transactions.find(params[:transaction_id])
       end
+
+      @entry_ids = Array(params[:entry_ids]).reject(&:blank?)
     end
 
     def categories_scope

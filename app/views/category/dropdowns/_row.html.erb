@@ -1,18 +1,26 @@
 <%# locals: (category:) %>
 <% is_selected = category.id === @selected_category&.id %>
 
+<% if @entry_ids.present? %>
+  <% assign_url = transactions_bulk_update_path %>
+  <% assign_params = { bulk_update: { category_id: category.id, entry_ids: @entry_ids } } %>
+  <% assign_method = :post %>
+  <% assign_data = { turbo_frame: "_top" } %>
+<% else %>
+  <% assign_url = transaction_category_path(@transaction.entry) %>
+  <% assign_params = { entry: { entryable_type: "Transaction", entryable_attributes: { id: @transaction.id, category_id: category.id } } } %>
+  <% assign_method = :patch %>
+  <% assign_data = {} %>
+<% end %>
+
 <%= content_tag :div,
       class: ["filterable-item flex justify-between items-center border-none rounded-lg px-2 py-1 group w-full hover:bg-container-inset-hover",
               { "bg-container-inset": is_selected }],
       data: { filter_name: category.name } do %>
-  <%= button_to transaction_category_path(
-        @transaction.entry,
-        entry: {
-          entryable_type: "Transaction",
-          entryable_attributes: { id: @transaction.id, category_id: category.id }
-        }
-      ),
-      method: :patch,
+  <%= button_to assign_url,
+      params: assign_params,
+      method: assign_method,
+      data: assign_data,
       class: "flex w-full items-center gap-1.5 cursor-pointer focus:outline-none" do %>
 
     <%= icon("check") if is_selected %>
