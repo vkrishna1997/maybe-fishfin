@@ -10,7 +10,7 @@
   <% assign_url = transaction_category_path(@transaction.entry) %>
   <% assign_params = { entry: { entryable_type: "Transaction", entryable_attributes: { id: @transaction.id, category_id: category.id } } } %>
   <% assign_method = :patch %>
-  <% assign_data = {} %>
+  <% assign_data = @return_to_top ? { turbo_frame: "_top" } : {} %>
 <% end %>
 
 <%= content_tag :div,

@@ -1,68 +1,77 @@
 <%# locals: (suggestions:) %>
 <% if suggestions.any? %>
-  <div class="bg-container rounded-xl shadow-border-xs p-4 space-y-4"
+  <div class="bg-container rounded-xl shadow-border-xs p-2"
        data-controller="list-dismiss">
-    <div class="flex items-center justify-between gap-4">
-      <div class="flex items-center gap-2">
-        <%= icon "sparkles", size: "sm", color: "current" %>
-        <h2 class="font-medium text-primary">Suggested categories</h2>
-        <span class="text-secondary text-sm">
-          <%= pluralize(suggestions.size, "transaction") %> we can categorize for you
-        </span>
-      </div>
-
-      <%= button_to transactions_category_suggestions_path,
-            method: :post,
-            class: "flex items-center gap-1 text-sm font-medium text-primary rounded-lg px-3 py-1.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700",
-            form: { data: { turbo: false } } do %>
-        <% suggestions.each do |s| %>
-          <%= hidden_field_tag "suggestions[#{s[:transaction].id}]", s[:category].id %>
-        <% end %>
-        Accept all
-      <% end %>
-    </div>
-
-    <div class="space-y-2">
-      <% suggestions.each do |suggestion| %>
-        <% txn = suggestion[:transaction] %>
-        <% category = suggestion[:category] %>
-        <% entry = txn.entry %>
-        <div class="flex items-center justify-between gap-3 py-2 border-t border-primary"
-             data-list-dismiss-target="item">
-          <div class="min-w-0 flex items-center gap-3">
-            <%= icon "arrow-right", size: "sm", color: "default" %>
-            <div class="min-w-0">
-              <p class="text-sm font-medium text-primary truncate"><%= entry.name %></p>
-              <p class="text-xs text-secondary">
-                <%= I18n.l(entry.date, format: :long) %> &middot; <%= entry.account.name %>
-              </p>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-3 shrink-0">
-            <span class="text-sm font-medium text-primary tabular-nums">
-              <%= format_money(entry.amount_money) %>
+    <%= render DS::Disclosure.new(align: "left", open: true) do |disclosure| %>
+      <% disclosure.with_summary_content do %>
+        <div class="flex items-center justify-between w-full gap-4">
+          <div class="flex items-center gap-2">
+            <%= icon "chevron-right", class: "group-open:transform group-open:rotate-90" %>
+            <%= icon "sparkles", size: "sm", color: "current" %>
+            <h2 class="font-medium text-primary">Suggested categories</h2>
+            <span class="text-secondary text-sm">
+              <%= pluralize(suggestions.size, "transaction") %> we can categorize for you
             </span>
-
-            <%= render "categories/badge", category: category %>
-
-            <%= button_to transactions_category_suggestions_path,
-                  method: :post,
-                  class: "text-sm font-medium text-primary rounded-lg px-3 py-1.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700",
-                  form: { data: { turbo: false } } do %>
-              <%= hidden_field_tag "suggestions[#{txn.id}]", category.id %>
-              Accept
-            <% end %>
-
-            <button type="button"
-                    class="text-secondary hover:text-primary p-1"
-                    title="Dismiss"
-                    data-action="list-dismiss#dismiss">
-              <%= icon "x", size: "sm", color: "current" %>
-            </button>
           </div>
         </div>
       <% end %>
-    </div>
+
+      <div class="px-2 pb-2">
+        <div class="flex justify-end pb-1">
+          <%= button_to transactions_category_suggestions_path,
+                method: :post,
+                class: "flex items-center gap-1 text-sm font-medium text-primary rounded-lg px-3 py-1.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700",
+                form: { data: { turbo: false } } do %>
+            <% suggestions.each do |s| %>
+              <%= hidden_field_tag "suggestions[#{s[:transaction].id}]", s[:category].id %>
+            <% end %>
+            Accept all
+          <% end %>
+        </div>
+
+        <div class="space-y-2">
+          <% suggestions.each do |suggestion| %>
+            <% txn = suggestion[:transaction] %>
+            <% category = suggestion[:category] %>
+            <% entry = txn.entry %>
+            <div class="flex items-center justify-between gap-3 py-2 border-t border-primary"
+                 data-list-dismiss-target="item">
+              <div class="min-w-0 flex items-center gap-3">
+                <%= icon "arrow-right", size: "sm", color: "default" %>
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-primary truncate"><%= entry.name %></p>
+                  <p class="text-xs text-secondary">
+                    <%= I18n.l(entry.date, format: :long) %> &middot; <%= entry.account.name %>
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3 shrink-0">
+                <span class="text-sm font-medium text-primary tabular-nums">
+                  <%= format_money(entry.amount_money) %>
+                </span>
+
+                <%= render "categories/menu", transaction: txn, selected_category: category, return_to_top: true %>
+
+                <%= button_to transactions_category_suggestions_path,
+                      method: :post,
+                      class: "text-sm font-medium text-primary rounded-lg px-3 py-1.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700",
+                      form: { data: { turbo: false } } do %>
+                  <%= hidden_field_tag "suggestions[#{txn.id}]", category.id %>
+                  Accept
+                <% end %>
+
+                <button type="button"
+                        class="text-secondary hover:text-primary p-1"
+                        title="Dismiss"
+                        data-action="list-dismiss#dismiss">
+                  <%= icon "x", size: "sm", color: "current" %>
+                </button>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
   </div>
 <% end %>
