@@ -115,4 +115,19 @@ class RecurringSeriesTest < ActiveSupport::TestCase
     assert item
     assert_empty item.review_reasons
   end
+
+  test "exposes entry ids, merchant and category for flagged items" do
+    merchant = @family.merchants.create!(name: "Mystery Sub", type: "FamilyMerchant")
+    entries = 5.times.map do |i|
+      create_transaction(account: @account, name: "Mystery Sub", amount: 9.99, date: (i * 30).days.ago.to_date, merchant: merchant)
+    end
+
+    item = RecurringSeries.new(@family).flagged.find { |s| s.name == "Mystery Sub" }
+
+    assert item, "expected the uncategorized series to be flagged"
+    assert_equal entries.map(&:id).sort, item.entry_ids.sort
+    assert_equal merchant.id, item.merchant_id
+    assert_nil item.category_id
+    assert_equal({ q: { merchants: [ "Mystery Sub" ] } }, item.review_filter_params)
+  end
 end

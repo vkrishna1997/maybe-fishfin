@@ -6,7 +6,8 @@ class RecurringSeries
   Series = Data.define(
     :key, :name, :merchant_name, :category_name, :classification,
     :amount, :currency, :cadence, :interval_days, :occurrences,
-    :last_date, :next_date, :account_name, :last_amount, :review_reasons
+    :last_date, :next_date, :account_name, :last_amount, :review_reasons,
+    :merchant_id, :category_id, :entry_ids
   ) do
     def expense?
       classification == "expense"
@@ -22,6 +23,16 @@ class RecurringSeries
 
     def needs_review?
       review_reasons.any?
+    end
+
+    # Filter params to open this series' transactions in the index, so the user
+    # can see exactly what's being flagged.
+    def review_filter_params
+      if merchant_name.present?
+        { q: { merchants: [ merchant_name ] } }
+      else
+        { q: { search: name } }
+      end
     end
   end
 
@@ -86,10 +97,13 @@ class RecurringSeries
           key: group_key(txn, entry),
           name: entry.name,
           merchant_name: txn.merchant&.name,
+          merchant_id: txn.merchant_id,
           category_name: txn.category&.name,
+          category_id: txn.category_id,
           amount: entry.amount,
           currency: entry.currency,
           date: entry.date,
+          entry_id: entry.id,
           account_name: entry.account&.name
         }
       end
@@ -151,7 +165,10 @@ class RecurringSeries
           median_amount: amount.abs,
           last_amount: last_amount.abs,
           category_name: sample[:category_name]
-        )
+        ),
+        merchant_id: sample[:merchant_id],
+        category_id: sample[:category_id],
+        entry_ids: rows.map { |r| r[:entry_id] }
       )
     end
 
