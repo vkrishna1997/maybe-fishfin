@@ -205,6 +205,25 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "td", text: "Spotify"
   end
 
+  test "recurring review card offers a new category link" do
+    merchant = @user.family.merchants.create!(name: "Hulu", type: "FamilyMerchant")
+    5.times do |i|
+      create_transaction(
+        account: accounts(:depository),
+        name: "Hulu",
+        amount: 17.99,
+        date: (i * 30).days.ago.to_date,
+        merchant: merchant,
+        category: nil
+      )
+    end
+
+    get recurring_path
+    assert_response :ok
+    assert_select "[data-testid='recurring-review-card']"
+    assert_select "[data-testid='recurring-review-card'] a[href='#{new_category_path}'][data-turbo-frame='modal']"
+  end
+
   test "forecasting" do
     get forecasting_path
     assert_response :ok
