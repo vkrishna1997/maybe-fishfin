@@ -34,30 +34,15 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
-          <%= form_with url: transactions_bulk_update_path, scope: "bulk_update", method: :post,
-                data: { controller: "auto-submit-form", turbo_frame: "_top" },
-                class: "flex items-center gap-2" do |form| %>
-            <% item.entry_ids.each do |entry_id| %>
-              <%= form.hidden_field :entry_ids, multiple: true, value: entry_id %>
-            <% end %>
-            <%= icon "tag", size: "sm", color: "secondary" %>
-            <%= form.collection_select :category_id,
-                  Current.family.categories.alphabetically, :id, :name,
-                  { selected: item.category_id, prompt: "Set a category" },
-                  class: "min-w-[160px] bg-transparent rounded border border-secondary cursor-pointer text-primary text-xs py-1 px-2",
-                  data: { auto_submit_form_target: "auto", autosubmit_trigger_event: "change" } %>
-          <% end %>
+          <%= render "categories/menu",
+                entry_ids: item.entry_ids,
+                selected_category: item.category_id ? Current.family.categories.find_by(id: item.category_id) : nil %>
 
           <%= link_to transactions_path(item.review_filter_params),
                 class: "text-xs text-secondary hover:text-primary flex items-center gap-1",
                 data: { turbo_frame: "_top" } do %>
             <%= icon "list", size: "sm" %>
             Review <%= pluralize(item.entry_ids.size, "transaction") %>
-          <% end %>
-
-          <%= link_to new_category_path, class: "text-xs text-secondary hover:text-primary flex items-center gap-1", data: { turbo_frame: "modal" } do %>
-            <%= icon "plus", size: "sm" %>
-            New category
           <% end %>
         </div>
       </div>
