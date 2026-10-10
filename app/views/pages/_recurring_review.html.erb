@@ -54,6 +54,11 @@
             <%= icon "list", size: "sm" %>
             Review <%= pluralize(item.entry_ids.size, "transaction") %>
           <% end %>
+
+          <%= link_to new_category_path, class: "text-xs text-secondary hover:text-primary flex items-center gap-1", data: { turbo_frame: "modal" } do %>
+            <%= icon "plus", size: "sm" %>
+            New category
+          <% end %>
         </div>
       </div>
     <% end %>
