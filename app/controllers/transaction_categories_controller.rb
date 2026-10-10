@@ -7,13 +7,7 @@ class TransactionCategoriesController < ApplicationController
 
     transaction = @entry.transaction
 
-    if needs_rule_notification?(transaction)
-      flash[:cta] = {
-        type: "category_rule",
-        category_id: transaction.category_id,
-        category_name: transaction.category.name
-      }
-    end
+    set_category_rule_cta(transaction, changed: transaction.saved_change_to_category_id?)
 
     transaction.lock_saved_attributes!
     @entry.lock_saved_attributes!
@@ -36,17 +30,5 @@ class TransactionCategoriesController < ApplicationController
   private
     def entry_params
       params.require(:entry).permit(:entryable_type, entryable_attributes: [ :id, :category_id ])
-    end
-
-    def needs_rule_notification?(transaction)
-      return false if Current.user.rule_prompts_disabled
-
-      if Current.user.rule_prompt_dismissed_at.present?
-        time_since_last_rule_prompt = Time.current - Current.user.rule_prompt_dismissed_at
-        return false if time_since_last_rule_prompt < 1.day
-      end
-
-      transaction.saved_change_to_category_id? &&
-      transaction.eligible_for_category_rule?
     end
 end
