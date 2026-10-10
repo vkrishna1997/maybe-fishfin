@@ -3,6 +3,7 @@ require "application_system_test_case"
 class AccountsTest < ApplicationSystemTestCase
   setup do
     sign_in @user = users(:family_admin)
+    @user.update!(show_sidebar: true)
 
     Family.any_instance.stubs(:get_link_token).returns("test-link-token")
 
