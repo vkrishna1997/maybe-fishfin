@@ -16,6 +16,7 @@ class Category::DropdownsController < ApplicationController
       end
 
       @entry_ids = Array(params[:entry_ids]).reject(&:blank?)
+      @return_to_top = ActiveModel::Type::Boolean.new.cast(params[:return_to_top])
     end
 
     def categories_scope
