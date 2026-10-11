@@ -1,0 +1,52 @@
+<%# locals: (title:, segments:, total:, currency:, empty_text:) %>
+<section class="bg-container rounded-xl shadow-border-xs p-5 space-y-5">
+  <h2 class="text-lg font-medium text-primary"><%= title %></h2>
+
+  <% if segments.present? %>
+    <% total_d = total.to_d %>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
+      <%# --- Donut --- %>
+      <%= tag.div class: "relative h-56 mx-auto w-full max-w-[14rem]",
+            data: { controller: "donut-chart", "donut-chart-segments-value": segments.to_json, "donut-chart-segment-height-value": 5 } do %>
+        <div data-donut-chart-target="chartContainer" class="absolute inset-0"></div>
+        <div data-donut-chart-target="contentContainer" class="absolute inset-0 flex items-center justify-center text-center">
+          <div data-donut-chart-target="defaultContent" class="flex flex-col items-center">
+            <span class="text-xs uppercase tracking-wide text-secondary mb-1"><%= title %></span>
+            <span class="text-2xl font-medium text-primary tabular-nums"><%= Money.new(total, currency).format %></span>
+          </div>
+          <% segments.each do |seg| %>
+            <div id="segment_<%= seg[:id] %>" class="hidden flex-col items-center">
+              <span class="text-xs text-secondary mb-1 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: <%= seg[:color] %>"></span>
+                <%= seg[:label] %>
+              </span>
+              <span class="text-2xl font-medium text-primary tabular-nums"><%= Money.new(seg[:amount], currency).format %></span>
+              <span class="text-xs text-secondary mt-0.5 tabular-nums">
+                <%= total_d.zero? ? "0%" : number_to_percentage(seg[:amount].to_d / total_d * 100, precision: 0) %>
+              </span>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%# --- Legend / breakdown --- %>
+      <div class="space-y-2">
+        <% segments.each do |seg| %>
+          <% share = total_d.zero? ? 0 : (seg[:amount].to_d / total_d * 100) %>
+          <div class="flex items-center justify-between gap-3 text-sm">
+            <span class="flex items-center gap-2 min-w-0 text-primary">
+              <span class="w-2.5 h-2.5 rounded-full inline-block shrink-0" style="background-color: <%= seg[:color] %>"></span>
+              <span class="truncate"><%= seg[:label] %></span>
+            </span>
+            <span class="shrink-0 flex items-center gap-3">
+              <span class="text-primary font-medium tabular-nums"><%= Money.new(seg[:amount], currency).format %></span>
+              <span class="text-secondary text-xs tabular-nums w-9 text-right"><%= number_to_percentage(share, precision: 0) %></span>
+            </span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <p class="text-sm text-secondary py-6 text-center"><%= empty_text %></p>
+  <% end %>
+</section>

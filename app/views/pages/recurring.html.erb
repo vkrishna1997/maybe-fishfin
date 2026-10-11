@@ -1,0 +1,41 @@
+<% content_for :page_header do %>
+  <div class="space-y-1 mb-6 flex gap-4 justify-between items-center lg:items-start">
+    <div class="space-y-1">
+      <h1 class="text-xl lg:text-3xl font-medium text-primary">Recurring</h1>
+      <p class="text-sm lg:text-base text-secondary">Subscriptions, bills, and income detected from your transaction history</p>
+    </div>
+  </div>
+<% end %>
+
+<% currency = @recurring_currency %>
+
+<div class="w-full space-y-6 pb-24">
+  <% if @recurring_expenses.empty? && @recurring_incomes.empty? %>
+    <div class="bg-container rounded-xl shadow-border-xs p-8 flex flex-col items-center text-center space-y-3">
+      <%= render DS::FilledIcon.new(variant: :container, icon: "refresh-cw") %>
+      <p class="text-sm font-medium text-primary">No recurring items detected yet</p>
+      <p class="text-secondary text-sm">Once you have a few months of transactions, recurring subscriptions, bills, and paychecks will appear here automatically.</p>
+    </div>
+  <% else %>
+    <%# --- Summary tiles --- %>
+    <div class="grid grid-cols-2 md:grid-cols-3 bg-container rounded-xl shadow-border-xs md:divide-x divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200">
+      <div class="p-4 space-y-2">
+        <p class="text-sm text-secondary">Est. monthly recurring</p>
+        <p class="text-primary font-medium text-xl"><%= @monthly_expense_estimate.format %></p>
+      </div>
+      <div class="p-4 space-y-2">
+        <p class="text-sm text-secondary">Recurring expenses</p>
+        <p class="text-primary font-medium text-xl"><%= @recurring_expenses.size %></p>
+      </div>
+      <div class="p-4 space-y-2">
+        <p class="text-sm text-secondary">Recurring income</p>
+        <p class="text-primary font-medium text-xl"><%= @recurring_incomes.size %></p>
+      </div>
+    </div>
+
+    <%= render "pages/recurring_review", series: @recurring_flagged, currency: currency if @recurring_flagged.any? %>
+
+    <%= render "pages/recurring_table", title: "Upcoming expenses", series: @recurring_expenses, currency: currency, testid: "recurring-expenses-table" if @recurring_expenses.any? %>
+    <%= render "pages/recurring_table", title: "Recurring income", series: @recurring_incomes, currency: currency, testid: "recurring-incomes-table" if @recurring_incomes.any? %>
+  <% end %>
+</div>

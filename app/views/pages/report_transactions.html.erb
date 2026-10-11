@@ -1,0 +1,43 @@
+<%= turbo_frame_tag "reports_transactions" do %>
+  <% currency = @report_currency %>
+  <% total = @report_transactions.sum { |t| t.entry.amount.to_d } %>
+  <% open_in_transactions_params = @report_classification.present? ?
+       { "q[types][]": @report_classification, "q[start_date]": @report_period.start_date, "q[end_date]": @report_period.end_date } :
+       { "q[categories][]": @report_category_name, "q[start_date]": @report_period.start_date, "q[end_date]": @report_period.end_date } %>
+  <section class="bg-container rounded-xl shadow-border-xs p-5 space-y-4" data-testid="report-transactions">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h3 class="text-lg font-medium text-primary"><%= @report_title %></h3>
+        <p class="text-xs text-secondary">
+          <%= @report_period.start_date.strftime("%b %d, %Y") %> – <%= @report_period.end_date.strftime("%b %d, %Y") %>
+          · <%= pluralize(@report_transactions.size, "transaction") %>
+        </p>
+      </div>
+      <div class="text-right">
+        <p class="text-primary font-medium text-lg whitespace-nowrap"><%= Money.new(total.abs, currency).format %></p>
+        <%= link_to "Open in Transactions →",
+              transactions_path(open_in_transactions_params),
+              class: "text-xs text-secondary hover:text-primary" %>
+      </div>
+    </div>
+
+    <% if @report_transactions.empty? %>
+      <p class="text-sm text-secondary py-6 text-center">No transactions for the selected period.</p>
+    <% else %>
+      <div class="divide-y divide-alpha-black-50 theme-dark:divide-alpha-white-100">
+        <% @report_transactions.each do |transaction| %>
+          <% entry = transaction.entry %>
+          <div class="flex items-center justify-between gap-3 py-2.5">
+            <div class="min-w-0">
+              <p class="text-sm text-primary font-medium truncate"><%= transaction.merchant&.name.presence || entry.name %></p>
+              <p class="text-xs text-secondary truncate"><%= entry.date.strftime("%b %d, %Y") %> · <%= entry.account.name %></p>
+            </div>
+            <span class="text-sm font-medium whitespace-nowrap <%= entry.amount.negative? ? "text-green-600" : "text-primary" %>">
+              <%= format_money(-entry.amount_money) %>
+            </span>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </section>
+<% end %>

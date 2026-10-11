@@ -1,6 +1,11 @@
 <% mobile_nav_items = [
   { name: "Home", path: root_path, icon: "pie-chart", icon_custom: false, active: page_active?(root_path) },
   { name: "Transactions", path: transactions_path, icon: "credit-card", icon_custom: false, active: page_active?(transactions_path) },
+  { name: "Cash Flow", path: cashflow_path, icon: "banknote", icon_custom: false, active: page_active?(cashflow_path) },
+  { name: "Investments", path: investments_path, icon: "trending-up", icon_custom: false, active: page_active?(investments_path) },
+  { name: "Recurring", path: recurring_path, icon: "refresh-cw", icon_custom: false, active: page_active?(recurring_path) },
+  { name: "Goals", path: goals_path, icon: "target", icon_custom: false, active: page_active?(goals_path) },
+  { name: "Forecasting", path: forecasting_path, icon: "telescope", icon_custom: false, active: page_active?(forecasting_path) },
   { name: "Budgets", path: budgets_path, icon: "map", icon_custom: false, active: page_active?(budgets_path) },
   { name: "Reports", path: reports_path, icon: "chart-no-axes-column", icon_custom: false, active: page_active?(reports_path) },
   { name: "Assistant", path: chats_path, icon: "icon-assistant", icon_custom: true, active: page_active?(chats_path), mobile_only: true }
@@ -81,7 +86,7 @@
       <% if content_for?(:sidebar) %>
         <%= yield :sidebar %>
       <% else %>
-        <div class="h-full flex flex-col">
+        <div class="h-full flex flex-col" id="account-sidebar" data-turbo-permanent>
           <div class="overflow-y-auto grow">
             <%= render "accounts/account_sidebar_tabs", family: Current.family, active_tab: @account_group_tab %>
           </div>

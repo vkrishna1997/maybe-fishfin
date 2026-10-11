@@ -8,17 +8,71 @@ export default class extends Controller {
     data: Object,
     nodeWidth: { type: Number, default: 15 },
     nodePadding: { type: Number, default: 20 },
-    currencySymbol: { type: String, default: "$" }
+    currencySymbol: { type: String, default: "$" },
+    transactionsUrl: { type: String, default: "" },
+    period: { type: String, default: "" },
+    frame: { type: String, default: "" },
+    defaultClassification: { type: String, default: "" }
   };
 
   connect() {
+    this.selection = null;
+    this.#buildTooltip();
     this.resizeObserver = new ResizeObserver(() => this.#draw());
     this.resizeObserver.observe(this.element);
     this.#draw();
+    this.#applyDefaultSelection();
   }
 
   disconnect() {
     this.resizeObserver?.disconnect();
+    this.tooltip?.remove();
+  }
+
+  // Floating tooltip shown while hovering nodes/flows (Monarch-style).
+  #buildTooltip() {
+    if (getComputedStyle(this.element).position === "static") {
+      this.element.style.position = "relative";
+    }
+    this.tooltip = document.createElement("div");
+    this.tooltip.className =
+      "pointer-events-none absolute z-20 hidden rounded-md bg-gray-700 fg-inverse text-xs font-medium px-2.5 py-1.5 shadow-lg whitespace-nowrap";
+    this.element.appendChild(this.tooltip);
+  }
+
+  #showTooltip(html, event) {
+    if (!this.tooltip) return;
+    this.tooltip.innerHTML = html;
+    this.tooltip.classList.remove("hidden");
+    this.#moveTooltip(event);
+  }
+
+  #moveTooltip(event) {
+    if (!this.tooltip) return;
+    const rect = this.element.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const offset = 14;
+    const tipWidth = this.tooltip.offsetWidth;
+    const tipHeight = this.tooltip.offsetHeight;
+    const left = Math.min(Math.max(0, x + offset), rect.width - tipWidth);
+    const top = Math.min(Math.max(0, y - tipHeight - offset / 2), rect.height - tipHeight);
+    this.tooltip.style.left = `${left}px`;
+    this.tooltip.style.top = `${top}px`;
+  }
+
+  #hideTooltip() {
+    this.tooltip?.classList.add("hidden");
+  }
+
+  #money(value) {
+    return (
+      this.currencySymbolValue +
+      Number.parseFloat(value).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
   }
 
   #draw() {
@@ -57,7 +111,7 @@ export default class extends Controller {
     sankeyData.links.forEach((link, i) => {
       const gradientId = `link-gradient-${link.source.index}-${link.target.index}-${i}`;
 
-      const getStopColorWithOpacity = (nodeColorInput, opacity = 0.1) => {
+      const getStopColorWithOpacity = (nodeColorInput, opacity = 0.5) => {
         let colorStr = nodeColorInput || "var(--color-gray-400)";
         if (colorStr === "var(--color-success)") {
           colorStr = "#10A861"; // Hex for --color-green-600
@@ -91,7 +145,7 @@ export default class extends Controller {
     });
 
     // Draw links
-    svg
+    const linkPaths = svg
       .append("g")
       .attr("fill", "none")
       .selectAll("path")
@@ -108,8 +162,31 @@ export default class extends Controller {
       })
       .attr("stroke", (d, i) => `url(#link-gradient-${d.source.index}-${d.target.index}-${i})`)
       .attr("stroke-width", (d) => Math.max(1, d.width))
-      .append("title")
-      .text((d) => `${nodes[d.source.index].name} → ${nodes[d.target.index].name}: ${this.currencySymbolValue}${Number.parseFloat(d.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${d.percentage}%)`);
+      .attr("stroke-opacity", 1);
+
+    this.linkPaths = linkPaths;
+
+    linkPaths
+      .on("mousemove", (event, d) => {
+        this.#emphasizeLink(d);
+        this.#showTooltip(
+          `${nodes[d.source.index].name} &rarr; ${nodes[d.target.index].name}<br><span class="font-mono">${this.#money(d.value)}</span> &middot; ${d.percentage}%`,
+          event
+        );
+      })
+      .on("mouseleave", () => {
+        this.#hideTooltip();
+        this.#resetEmphasis();
+      });
+
+    // A flow is clickable: expense flows drill into a category, income flows
+    // (into the central Cash Flow node) select the income classification.
+    if (this.interactive) {
+      linkPaths
+        .filter((d) => d.target.category_name || d.target.classification)
+        .style("cursor", "pointer")
+        .on("click", (event, d) => this.#onNodeClick(d.target));
+    }
 
     // Draw nodes
     const node = svg
@@ -117,6 +194,8 @@ export default class extends Controller {
       .selectAll("g")
       .data(sankeyData.nodes)
       .join("g");
+
+    this.nodeSel = node;
 
     const cornerRadius = 8;
 
@@ -174,6 +253,30 @@ export default class extends Controller {
         return "var(--color-gray-500)"; // Fallback, likely unused with current data
       });
 
+    // Hover any node to trace its connected flows and show its total.
+    node
+      .on("mousemove", (event, d) => {
+        this.#emphasizeNode(d);
+        const pctLabel = d.percentage != null ? ` &middot; ${d.percentage}%` : "";
+        this.#showTooltip(
+          `${d.name}<br><span class="font-mono">${this.#money(d.value)}</span>${pctLabel}`,
+          event
+        );
+      })
+      .on("mouseleave", () => {
+        this.#hideTooltip();
+        this.#resetEmphasis();
+      });
+
+    // Interactive drill-down: clicking a category node (or the central Cash Flow
+    // node) highlights its flows and loads the matching transactions into a frame.
+    if (this.interactive) {
+      node
+        .filter((d) => d.category_name || d.classification)
+        .style("cursor", "pointer")
+        .on("click", (event, d) => this.#onNodeClick(d));
+    }
+
     const stimulusControllerInstance = this;
     node
       .append("text")
@@ -200,5 +303,122 @@ export default class extends Controller {
         financialDetailsTspan.append("tspan")
           .text(stimulusControllerInstance.currencySymbolValue + Number.parseFloat(d.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
       });
+
+    // Re-apply a sticky selection that survived a resize-triggered redraw.
+    if (this.selection) this.#resetEmphasis();
   }
-} 
+
+  get interactive() {
+    return this.transactionsUrlValue.length > 0 && this.frameValue.length > 0;
+  }
+
+  // Select the income aggregate on first load so income transactions show.
+  #applyDefaultSelection() {
+    if (!this.interactive || !this.defaultClassificationValue || this.selection) return;
+    const cls = this.defaultClassificationValue;
+    const central = this.nodeSel?.data().find((n) => n.classification === cls);
+    if (!central) return;
+    this.#selectClassification(cls, central.index, { scroll: false });
+  }
+
+  #onNodeClick(node) {
+    if (node.category_name) {
+      this.#selectCategory(node);
+    } else if (node.classification) {
+      this.#selectClassification(node.classification, node.index);
+    }
+  }
+
+  #selectCategory(node) {
+    // Toggle selection off when the already-selected category is clicked again.
+    if (this.selection?.type === "node" && this.selection.index === node.index) {
+      this.#clearSelection();
+      return;
+    }
+
+    this.selection = { type: "node", index: node.index };
+    this.#emphasizeNode(node);
+
+    const params = new URLSearchParams();
+    params.set("category", node.category_name);
+    if (this.periodValue) params.set("cashflow_period", this.periodValue);
+    this.#loadFrame(params, { scroll: true });
+  }
+
+  #selectClassification(classification, nodeIndex, { scroll = true } = {}) {
+    // Toggle selection off when the already-selected classification is re-clicked.
+    if (this.selection?.type === "classification" && this.selection.value === classification) {
+      this.#clearSelection();
+      return;
+    }
+
+    this.selection = { type: "classification", value: classification, index: nodeIndex };
+    this.#emphasizeClassification(classification);
+
+    const params = new URLSearchParams();
+    params.set("classification", classification);
+    if (this.periodValue) params.set("cashflow_period", this.periodValue);
+    this.#loadFrame(params, { scroll });
+  }
+
+  #clearSelection() {
+    this.selection = null;
+    this.#resetEmphasis();
+    const openFrame = document.getElementById(this.frameValue);
+    if (openFrame) openFrame.innerHTML = "";
+  }
+
+  #loadFrame(params, { scroll }) {
+    const frame = document.getElementById(this.frameValue);
+    if (!frame) return;
+    frame.setAttribute("src", `${this.transactionsUrlValue}?${params.toString()}`);
+    if (scroll) frame.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  // Emphasize every flow touching a node (and the node itself); fade the rest.
+  #emphasizeNode(node) {
+    this.#applyEmphasis(
+      (link) => link.source.index === node.index || link.target.index === node.index,
+      (n) => n.index === node.index
+    );
+  }
+
+  // Emphasize every flow belonging to a classification (income or expense) plus
+  // the central Cash Flow node and the matching side's category nodes.
+  #emphasizeClassification(classification) {
+    const linkActive = classification === "income"
+      ? (l) => l.source.node_type === "income"
+      : (l) => l.target.node_type === "expense";
+    const nodeActive = (n) => n.node_type === classification || n.node_type === "cash_flow";
+    this.#applyEmphasis(linkActive, nodeActive);
+  }
+
+  // Emphasize a single flow and the two nodes it connects.
+  #emphasizeLink(link) {
+    this.#applyEmphasis(
+      (l) => l.index === link.index,
+      (n) => n.index === link.source.index || n.index === link.target.index
+    );
+  }
+
+  #applyEmphasis(linkActive, nodeActive) {
+    this.linkPaths?.attr("stroke-opacity", (l) => (linkActive(l) ? 1 : 0.08));
+    this.nodeSel?.attr("opacity", (n) => (nodeActive(n) ? 1 : 0.25));
+  }
+
+  // Restore full opacity, or fall back to the sticky selection if one is set.
+  #resetEmphasis() {
+    if (this.selection?.type === "node") {
+      const selected = this.nodeSel?.data().find((n) => n.index === this.selection.index);
+      if (selected) {
+        this.#emphasizeNode(selected);
+        return;
+      }
+    } else if (this.selection?.type === "classification") {
+      this.#emphasizeClassification(this.selection.value);
+      return;
+    }
+    this.linkPaths?.attr("stroke-opacity", 1);
+    this.nodeSel?.attr("opacity", 1);
+  }
+}

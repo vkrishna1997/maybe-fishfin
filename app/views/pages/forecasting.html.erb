@@ -1,0 +1,133 @@
+<% content_for :page_header do %>
+  <div class="space-y-1 mb-6 flex gap-4 justify-between items-center lg:items-start">
+    <div class="space-y-1">
+      <h1 class="text-xl lg:text-3xl font-medium text-primary">Forecasting</h1>
+      <p class="text-sm lg:text-base text-secondary">Project your net worth and estimate when you could reach financial independence</p>
+    </div>
+  </div>
+<% end %>
+
+<% currency = @forecasting_currency %>
+<% input_class = "bg-container border border-secondary font-medium rounded-lg px-3 py-2 text-sm text-primary focus:outline-hidden focus:ring-0 w-full" %>
+
+<div class="w-full space-y-6 pb-24">
+  <%# --- Assumptions --- %>
+  <section class="bg-container rounded-xl shadow-border-xs p-5 space-y-4">
+    <h2 class="font-medium text-lg text-primary">Assumptions</h2>
+    <%= form_with url: forecasting_path, method: :get do |form| %>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <label class="space-y-1.5 block">
+          <span class="text-sm text-secondary">Monthly contribution</span>
+          <%= form.number_field :monthly_contribution, value: @forecast_assumptions[:monthly_contribution].to_i, step: "any", class: input_class %>
+        </label>
+        <label class="space-y-1.5 block">
+          <span class="text-sm text-secondary">Annual growth rate (%)</span>
+          <%= form.number_field :annual_growth_rate, value: @forecast_assumptions[:annual_growth_rate], step: "0.1", class: input_class %>
+        </label>
+        <label class="space-y-1.5 block">
+          <span class="text-sm text-secondary">Annual expenses (for FI)</span>
+          <%= form.number_field :annual_expenses, value: @forecast_assumptions[:annual_expenses].to_i, step: "any", class: input_class %>
+        </label>
+        <label class="space-y-1.5 block">
+          <span class="text-sm text-secondary">Current age <span class="text-subdued">(optional)</span></span>
+          <%= form.number_field :current_age, value: @forecast_assumptions[:current_age], min: 0, max: 120, step: 1, placeholder: "—", class: input_class %>
+        </label>
+      </div>
+      <div class="mt-4">
+        <%= form.submit "Update forecast", class: "bg-gray-900 theme-dark:bg-white text-white theme-dark:text-gray-900 font-medium rounded-lg px-4 py-2 text-sm cursor-pointer" %>
+      </div>
+    <% end %>
+  </section>
+
+  <%# --- Summary tiles --- %>
+  <div class="grid grid-cols-2 md:grid-cols-4 bg-container rounded-xl shadow-border-xs md:divide-x divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200" data-testid="forecast-summary">
+    <div class="p-4 space-y-2">
+      <div class="flex items-center gap-1.5">
+        <p class="text-sm text-secondary">Current net worth</p>
+        <%= render "pages/forecast_hint", text: "Your net worth today — the starting point for the projection." %>
+      </div>
+      <p class="text-primary font-medium text-xl"><%= @forecast.money(@forecast.starting_net_worth).format %></p>
+    </div>
+    <div class="p-4 space-y-2">
+      <div class="flex items-center gap-1.5">
+        <p class="text-sm text-secondary">FI number</p>
+        <%= render "pages/forecast_hint", text: "Your financial-independence target: 25× your annual expenses (the 4% rule). It depends only on expenses — saving more doesn't lower it, it just gets you there sooner." %>
+      </div>
+      <p class="text-primary font-medium text-xl"><%= @forecast.fi_number ? @forecast.money(@forecast.fi_number).format : "—" %></p>
+    </div>
+    <div class="p-4 space-y-2">
+      <div class="flex items-center gap-1.5">
+        <p class="text-sm text-secondary">Financial independence</p>
+        <%= render "pages/forecast_hint", text: "When your projected net worth first reaches the FI number. Higher contributions or growth move this date earlier." %>
+      </div>
+      <% if @forecast.fi_date %>
+        <p class="text-success font-medium text-xl"><%= @forecast.fi_date.strftime("%b %Y") %></p>
+        <p class="text-xs text-secondary"><%= distance_of_time_in_words(Date.current, @forecast.fi_date) %> away</p>
+      <% else %>
+        <p class="text-primary font-medium text-xl">Not reached</p>
+      <% end %>
+    </div>
+    <div class="p-4 space-y-2">
+      <div class="flex items-center gap-1.5">
+        <p class="text-sm text-secondary">Retirement age</p>
+        <%= render "pages/forecast_hint", text: "Your age on the financial-independence date. Enter your current age above to calculate it." %>
+      </div>
+      <% if @forecast.retirement_age %>
+        <p class="text-success font-medium text-xl"><%= @forecast.retirement_age %></p>
+      <% elsif @forecast.fi_date %>
+        <p class="text-primary font-medium text-xl">Set age above</p>
+      <% else %>
+        <p class="text-primary font-medium text-xl">—</p>
+      <% end %>
+    </div>
+  </div>
+
+  <%# --- Projection line chart --- %>
+  <section class="bg-container rounded-xl shadow-border-xs p-5 space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="font-medium text-lg text-primary">Projected net worth</h2>
+      <div class="flex items-center gap-4 text-xs text-secondary">
+        <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-0.5 bg-success"></span>Net worth</span>
+        <% if @forecast.fi_number %>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-0 border-t border-dashed border-secondary"></span>FI number</span>
+        <% end %>
+      </div>
+    </div>
+
+    <%
+      forecast_series = @forecast.net_worth_series
+      reference_line = @forecast.fi_number ? { value: @forecast.fi_number, label: "FI number" } : {}
+      highlight_point = if @forecast.fi_date
+        { date: @forecast.fi_date.to_s, label: @forecast.retirement_age ? "Age #{@forecast.retirement_age}" : "FI" }
+      else
+        {}
+      end
+    %>
+
+    <% if forecast_series.any? %>
+      <div
+        id="forecastChart"
+        class="w-full h-80"
+        data-testid="forecast-chart"
+        data-controller="time-series-chart"
+        data-time-series-chart-data-value="<%= forecast_series.to_json %>"
+        data-time-series-chart-reference-line-value="<%= reference_line.to_json %>"
+        data-time-series-chart-highlight-point-value="<%= highlight_point.to_json %>"></div>
+    <% else %>
+      <div class="w-full h-80 flex items-center justify-center">
+        <p class="text-secondary text-sm">Not enough data to project</p>
+      </div>
+    <% end %>
+
+    <%# age context below the chart (ages aren't on the date axis) %>
+    <div class="flex justify-between text-xs text-secondary">
+      <span>Now<% if @forecast.current_age %> · age <%= @forecast.current_age %><% end %></span>
+      <% if @forecast.fi_date %>
+        <span class="text-success font-medium">
+          Financial independence · <%= @forecast.fi_date.strftime("%b %Y") %><% if @forecast.retirement_age %> · age <%= @forecast.retirement_age %><% end %>
+        </span>
+      <% end %>
+      <span><%= @forecast.series.last.date.strftime("%Y") %><% if @forecast.current_age %> · age <%= @forecast.current_age + @forecast.series.last.year %><% end %></span>
+    </div>
+  </section>
+</div>

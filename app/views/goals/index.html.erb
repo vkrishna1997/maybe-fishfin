@@ -1,0 +1,55 @@
+<% content_for :page_header do %>
+  <div class="space-y-1 mb-6 flex gap-4 justify-between items-center lg:items-start">
+    <div class="space-y-1">
+      <h1 class="text-xl lg:text-3xl font-medium text-primary">Goals</h1>
+      <p class="text-sm lg:text-base text-secondary">Track progress toward your savings targets</p>
+    </div>
+    <%= render DS::Link.new(
+      text: "New goal",
+      variant: "primary",
+      href: new_goal_path,
+      icon: "plus",
+      frame: :modal
+    ) %>
+  </div>
+<% end %>
+
+<% currency = @goals_currency %>
+
+<div class="w-full space-y-6 pb-24">
+  <% if @goals.empty? %>
+    <div class="bg-container rounded-xl shadow-border-xs p-8 flex flex-col items-center text-center space-y-3">
+      <%= render DS::FilledIcon.new(variant: :container, icon: "target") %>
+      <p class="text-sm font-medium text-primary">No goals yet</p>
+      <p class="text-secondary text-sm">Create a savings goal — an emergency fund, a vacation, a down payment — and track your progress over time.</p>
+      <%= render DS::Link.new(text: "Create your first goal", icon: "plus", href: new_goal_path, frame: :modal) %>
+    </div>
+  <% else %>
+    <%# --- Summary tiles --- %>
+    <div class="grid grid-cols-2 md:grid-cols-4 bg-container rounded-xl shadow-border-xs md:divide-x divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200">
+      <div class="p-4 space-y-2">
+        <p class="text-sm text-secondary">Total saved</p>
+        <p class="text-primary font-medium text-xl"><%= Money.new(@total_saved, currency).format %></p>
+      </div>
+      <div class="p-4 space-y-2">
+        <p class="text-sm text-secondary">Total target</p>
+        <p class="text-primary font-medium text-xl"><%= Money.new(@total_target, currency).format %></p>
+      </div>
+      <div class="p-4 space-y-2">
+        <p class="text-sm text-secondary">Saved this month</p>
+        <p class="font-medium text-xl <%= @actual_savings.to_d.negative? ? "text-warning" : "text-primary" %>"><%= Money.new(@actual_savings, currency).format %></p>
+        <% if @projected_savings %>
+          <p class="text-xs text-secondary">≈ <%= Money.new(@projected_savings, currency).format %> projected</p>
+        <% end %>
+      </div>
+      <div class="p-4 space-y-2">
+        <p class="text-sm text-secondary">Goals</p>
+        <p class="text-primary font-medium text-xl"><%= @goals.size %></p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="goals-list">
+      <%= render partial: "goals/goal", collection: @goals, as: :goal, locals: { monthly_savings: @monthly_savings, savings_basis: @savings_basis, savings_months: @savings_months } %>
+    </div>
+  <% end %>
+</div>

@@ -32,4 +32,39 @@ class Transactions::BulkUpdatesControllerTest < ActionDispatch::IntegrationTest
       assert_equal [ Tag.first.id, Tag.second.id ], transaction.entryable.tag_ids.sort
     end
   end
+
+  test "single-transaction category change sets create-rule cta" do
+    entry = @user.family.entries.transactions.first
+    new_category = @user.family.categories.where.not(id: entry.transaction.category_id).first
+
+    post transactions_bulk_update_url, params: {
+      bulk_update: { entry_ids: [ entry.id ], category_id: new_category.id }
+    }
+
+    assert_redirected_to transactions_url
+    assert_equal "category_rule", flash[:cta][:type]
+    assert_equal new_category.id, flash[:cta][:category_id]
+  end
+
+  test "multi-transaction category change does not set create-rule cta" do
+    entries = @user.family.entries.transactions.limit(2)
+
+    post transactions_bulk_update_url, params: {
+      bulk_update: { entry_ids: entries.map(&:id), category_id: Category.second.id }
+    }
+
+    assert_redirected_to transactions_url
+    assert_nil flash[:cta]
+  end
+
+  test "re-selecting the same category does not set create-rule cta" do
+    entry = @user.family.entries.transactions.detect { |e| e.transaction.category_id.present? }
+
+    post transactions_bulk_update_url, params: {
+      bulk_update: { entry_ids: [ entry.id ], category_id: entry.transaction.category_id }
+    }
+
+    assert_redirected_to transactions_url
+    assert_nil flash[:cta]
+  end
 end

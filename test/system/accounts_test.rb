@@ -3,6 +3,7 @@ require "application_system_test_case"
 class AccountsTest < ApplicationSystemTestCase
   setup do
     sign_in @user = users(:family_admin)
+    @user.update!(show_sidebar: true)
 
     Family.any_instance.stubs(:get_link_token).returns("test-link-token")
 
@@ -105,8 +106,10 @@ class AccountsTest < ApplicationSystemTestCase
     end
 
     def assert_account_created(accountable_type, &block)
-      click_link Accountable.from_type(accountable_type).display_name.singularize
-      click_link "Enter account balance" if accountable_type.in?(%w[Depository Investment Crypto Loan CreditCard])
+      within "#modal" do
+        click_link Accountable.from_type(accountable_type).display_name.singularize
+        click_link "Enter account balance" if accountable_type.in?(%w[Depository Investment Crypto Loan CreditCard])
+      end
 
       account_name = "[system test] #{accountable_type} Account"
 
