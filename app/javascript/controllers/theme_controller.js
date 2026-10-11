@@ -4,10 +4,14 @@ export default class extends Controller {
   static values = { userPreference: String };
 
   connect() {
+    this.applyTheme();
+    this._reapply = () => this.applyTheme();
+    document.addEventListener("turbo:render", this._reapply);
     this.startSystemThemeListener();
   }
 
   disconnect() {
+    document.removeEventListener("turbo:render", this._reapply);
     this.stopSystemThemeListener();
   }
 

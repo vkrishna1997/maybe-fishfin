@@ -9,6 +9,19 @@
   data-theme-user-preference-value="<%= Current.user&.theme || "system" %>"
   class="h-full text-primary overflow-hidden lg:overflow-auto font-sans <%= @os %>">
   <head>
+    <%# Resolve the theme before first paint to avoid a flash of the wrong theme
+        (FOUC). "system" cannot be resolved server-side, so do it inline here. %>
+    <script nonce="<%= content_security_policy_nonce %>">
+      (function () {
+        try {
+          var pref = "<%= Current.user&.theme || "system" %>";
+          var isDark = pref === "dark" ||
+            (pref === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+        } catch (e) {}
+      })();
+    </script>
     <%= render "layouts/shared/head" %>
     <%= yield :head %>
   </head>
